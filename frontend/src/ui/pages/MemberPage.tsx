@@ -51,6 +51,104 @@ function noteKeyToTranslationKey(noteKey: string) {
   }
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function SpeechIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function VoteIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 11 12 14 22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+interface VoteParsed {
+  memberResult: "for" | "against" | "abstain" | null;
+  overall: string | null;
+  totals: { for: number; against: number; abstain: number } | null;
+}
+
+function parseVoteSnippet(snippet: string | null | undefined): VoteParsed {
+  if (!snippet) return { memberResult: null, overall: null, totals: null };
+  const memberMatch = /member result:\s*(for|against|abstain)/i.exec(snippet);
+  const overallMatch = /overall:\s*([^.]+)/i.exec(snippet);
+  const totalsMatch = /totals:\s*for\s+(\d+)[,\s]+against\s+(\d+)[,\s]+abstain\s+(\d+)/i.exec(snippet);
+  return {
+    memberResult: memberMatch ? (memberMatch[1].toLowerCase() as VoteParsed["memberResult"]) : null,
+    overall: overallMatch ? overallMatch[1].trim() : null,
+    totals: totalsMatch
+      ? { for: parseInt(totalsMatch[1], 10), against: parseInt(totalsMatch[2], 10), abstain: parseInt(totalsMatch[3], 10) }
+      : null,
+  };
+}
+
+function VoteResultCard({ parsed }: { parsed: VoteParsed }) {
+  const total = parsed.totals ? parsed.totals.for + parsed.totals.against + parsed.totals.abstain : 0;
+  const forPct = total > 0 ? (parsed.totals!.for / total) * 100 : 0;
+  const againstPct = total > 0 ? (parsed.totals!.against / total) * 100 : 0;
+  const abstainPct = total > 0 ? (parsed.totals!.abstain / total) * 100 : 0;
+
+  const memberClass =
+    parsed.memberResult === "for" ? "vote-verdict--for"
+    : parsed.memberResult === "against" ? "vote-verdict--against"
+    : "vote-verdict--abstain";
+
+  const memberLabel =
+    parsed.memberResult === "for" ? "Voted For"
+    : parsed.memberResult === "against" ? "Voted Against"
+    : parsed.memberResult === "abstain" ? "Abstained"
+    : null;
+
+  return (
+    <div className="vote-result-card">
+      <div className="vote-result-card__top">
+        {memberLabel && (
+          <span className={`vote-verdict ${memberClass}`}>{memberLabel}</span>
+        )}
+        {parsed.overall && (
+          <span className="vote-result-card__overall">{parsed.overall}</span>
+        )}
+      </div>
+      {parsed.totals && total > 0 && (
+        <div className="vote-result-card__tally">
+          <div className="vote-tally-bar">
+            {forPct > 0 && <div className="vote-tally-bar__seg vote-tally-bar__seg--for" style={{ width: `${forPct}%` }} />}
+            {abstainPct > 0 && <div className="vote-tally-bar__seg vote-tally-bar__seg--abstain" style={{ width: `${abstainPct}%` }} />}
+            {againstPct > 0 && <div className="vote-tally-bar__seg vote-tally-bar__seg--against" style={{ width: `${againstPct}%` }} />}
+          </div>
+          <div className="vote-tally-labels">
+            <span className="vote-tally-labels__for">
+              <span className="vote-tally-dot vote-tally-dot--for" />
+              For <strong>{parsed.totals.for}</strong>
+            </span>
+            {parsed.totals.abstain > 0 && (
+              <span className="vote-tally-labels__abstain">
+                <span className="vote-tally-dot vote-tally-dot--abstain" />
+                Abstain <strong>{parsed.totals.abstain}</strong>
+              </span>
+            )}
+            <span className="vote-tally-labels__against">
+              <span className="vote-tally-dot vote-tally-dot--against" />
+              Against <strong>{parsed.totals.against}</strong>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function tryGetMeetingIdFromUrl(url: string): number | null {
   try {
     const u = new URL(url);
@@ -249,14 +347,15 @@ export default function MemberPage() {
             </section>
           )}
 
-          <section>
-            <div style={{ marginBottom: 16 }}>
-              <div className="row row--8" style={{ marginBottom: 4 }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>{t("real_spoken_title")}</h2>
+          <section className="parl-section">
+            <div className="parl-section__head">
+              <div className="parl-section__head-left">
+                <span className="parl-section__icon parl-section__icon--speech"><SpeechIcon /></span>
+                <h2 className="parl-section__title">{t("real_spoken_title")}</h2>
                 <span className="badge badge--warn">{t("status_partial")}</span>
               </div>
-              <p className="section-sub text-muted text-sm">{t("real_spoken_desc")}</p>
             </div>
+            <p className="parl-section__desc">{t("real_spoken_desc")}</p>
 
             {participation?.real?.partial && (
               <div className="alert alert--warn text-sm" style={{ marginBottom: 12 }}>{t("data_partial_warning")}</div>
@@ -276,16 +375,17 @@ export default function MemberPage() {
             ) : null}
 
             {realSpeeches.length > 0 ? (
-              <div className="stack stack--8">
+              <div className="parl-list">
                 {realSpeeches
                   .slice()
                   .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
                   .map((it) => {
                     const meetingId = tryGetMeetingIdFromUrl(it.sourceUrl);
+                    const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
                     return (
-                      <div className="contribution-item" key={it.id}>
-                        <div className="contribution-item__header">
-                          <span className="contribution-item__title">{it.title}</span>
+                      <div className="parl-item parl-item--speech" key={it.id}>
+                        <div className="parl-item__meta">
+                          <span className="parl-item__date">{formatDate(it.occurredAt)}</span>
                           {confidenceBadge(
                             it.confidence,
                             it.confidence === "high" ? t("confidence_high")
@@ -293,15 +393,13 @@ export default function MemberPage() {
                               : t("confidence_low")
                           )}
                         </div>
-                        <div className="contribution-item__date">
-                          {new Date(it.occurredAt).toLocaleString()}
-                        </div>
-                        <div className="contribution-item__snippet">
-                          {(lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn}
-                        </div>
-                        <div className="contribution-item__links">
+                        <h3 className="parl-item__title">{it.title}</h3>
+                        {snippet && (
+                          <blockquote className="parl-item__quote">{snippet}</blockquote>
+                        )}
+                        <div className="parl-item__actions">
                           <button
-                            className="btn btn--ghost btn--sm"
+                            className="parl-item__read-btn"
                             onClick={async () => {
                               const match = /^spoken:(\d+):(\d+)$/.exec(it.id);
                               if (!match) {
@@ -332,11 +430,11 @@ export default function MemberPage() {
                             {t("read_full")}
                           </button>
                           {meetingId ? (
-                            <a className="link-pill" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
+                            <a className="parl-item__source-link" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
                               {t("view_record_page")} <ExternalIcon />
                             </a>
                           ) : (
-                            <a className="link-pill" href={it.sourceUrl} target="_blank" rel="noreferrer">
+                            <a className="parl-item__source-link" href={it.sourceUrl} target="_blank" rel="noreferrer">
                               {t("source_label")} <ExternalIcon />
                             </a>
                           )}
@@ -346,34 +444,36 @@ export default function MemberPage() {
                   })}
               </div>
             ) : (
-              <div className="alert alert--warn text-sm">{t("no_verified_votes")}</div>
+              <div className="parl-empty">{t("no_verified_votes")}</div>
             )}
           </section>
 
-          <section>
-            <div style={{ marginBottom: 16 }}>
-              <div className="row row--8" style={{ marginBottom: 4 }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>{t("real_votes_title")}</h2>
+          <section className="parl-section">
+            <div className="parl-section__head">
+              <div className="parl-section__head-left">
+                <span className="parl-section__icon parl-section__icon--vote"><VoteIcon /></span>
+                <h2 className="parl-section__title">{t("real_votes_title")}</h2>
                 <span className="badge badge--warn">{t("status_partial")}</span>
               </div>
-              <p className="section-sub text-muted text-sm">{t("real_votes_desc")}</p>
             </div>
+            <p className="parl-section__desc">{t("real_votes_desc")}</p>
 
             {participation?.real?.partial && (
               <div className="alert alert--warn text-sm" style={{ marginBottom: 12 }}>{t("data_partial_warning")}</div>
             )}
 
             {realVotes.length > 0 ? (
-              <div className="stack stack--8">
+              <div className="parl-list">
                 {realVotes
                   .slice()
                   .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
                   .map((it) => {
                     const meetingId = tryGetMeetingIdFromUrl(it.sourceUrl);
+                    const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
                     return (
-                      <div className="contribution-item" key={it.id}>
-                        <div className="contribution-item__header">
-                          <span className="contribution-item__title">{it.title}</span>
+                      <div className="parl-item parl-item--vote" key={it.id}>
+                        <div className="parl-item__meta">
+                          <span className="parl-item__date">{formatDate(it.occurredAt)}</span>
                           {confidenceBadge(
                             it.confidence,
                             it.confidence === "high" ? t("confidence_high")
@@ -381,19 +481,15 @@ export default function MemberPage() {
                               : t("confidence_low")
                           )}
                         </div>
-                        <div className="contribution-item__date">
-                          {new Date(it.occurredAt).toLocaleString()}
-                        </div>
-                        <div className="contribution-item__snippet">
-                          {(lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn}
-                        </div>
-                        <div className="contribution-item__links">
+                        <h3 className="parl-item__title">{it.title}</h3>
+                        <VoteResultCard parsed={parseVoteSnippet(snippet)} />
+                        <div className="parl-item__actions">
                           {meetingId ? (
-                            <a className="link-pill" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
+                            <a className="parl-item__source-link" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
                               {t("view_record_page")} <ExternalIcon />
                             </a>
                           ) : (
-                            <a className="link-pill" href={it.sourceUrl} target="_blank" rel="noreferrer">
+                            <a className="parl-item__source-link" href={it.sourceUrl} target="_blank" rel="noreferrer">
                               {t("source_label")} <ExternalIcon />
                             </a>
                           )}
@@ -403,7 +499,7 @@ export default function MemberPage() {
                   })}
               </div>
             ) : (
-              <div className="alert alert--warn text-sm">{t("no_verified_participation")}</div>
+              <div className="parl-empty">{t("no_verified_participation")}</div>
             )}
           </section>
 

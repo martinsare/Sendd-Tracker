@@ -1,13 +1,14 @@
 export const enStrings: Record<string, string> = {
   app_title: "Senedd Tracker",
-  app_subtitle: "Recorded participation dashboard (MVP)",
-  app_subtitle_short: "Participation tracker",
+  app_subtitle: "Recorded participation dashboard",
+  app_subtitle_short: "Participation dashboard",
   nav_home: "Home",
   nav_data: "Data availability",
+  hero_eyebrow: "Official plenary record • Member dashboard",
   hero_title_a: "Track your",
   hero_title_b: "Member of the Senedd",
   hero_desc:
-    "Search by postcode or constituency to find your Senedd Member and see their recorded participation in plenary sessions. All data is sourced directly from official Senedd records.",
+    "Search by postcode or constituency to find your Member of the Senedd and view their recorded participation in recent plenary sessions (speeches and votes), with source links for verification.",
   search_title: "Find your Member of the Senedd",
   search_help: "Search by postcode or constituency/region name.",
   search_placeholder: "e.g. CF10 1EP or Cardiff Central",
@@ -25,6 +26,22 @@ export const enStrings: Record<string, string> = {
   feature3_title: "Bilingual",
   feature3_desc:
     "The tracker fully supports both English and Welsh, matching the bilingual nature of the Senedd's official records.",
+  landing_steps_title: "How Senedd Tracker works",
+  landing_steps_desc: "A simple pipeline designed for clarity, verification, and long-term civic use.",
+  landing_step1_title: "Search your area",
+  landing_step1_desc: "Enter a postcode or constituency/region name to find the relevant MS(s).",
+  landing_step2_title: "Index official exports",
+  landing_step2_desc: "The backend fetches and caches official plenary transcript and vote exports.",
+  landing_step3_title: "Show verified items",
+  landing_step3_desc: "We extract per-member items with confidence labels and link to the official record.",
+  landing_coverage_title: "What’s included right now",
+  landing_coverage_desc: "Coverage is currently limited to recent plenary sessions that have been indexed.",
+  landing_chip_speeches: "Spoken contributions",
+  landing_chip_votes: "Votes/divisions",
+  landing_chip_confidence: "Confidence labels",
+  landing_verify_title: "Why we link to the official record",
+  landing_verify_body:
+    "Senedd Tracker helps you find and understand relevant items quickly, but the official record is the authoritative source for full context. Use the links to verify quotes and decisions.",
   member_card_title: "Member dashboard",
   member_party: "Party",
   member_area: "Constituency / Region",
@@ -36,7 +53,7 @@ export const enStrings: Record<string, string> = {
     "Member details are not available. Please go back and search again.",
   participation_title: "Recorded participation (not attendance)",
   participation_help:
-    "This section shows what is realistically available in the MVP and always links to official sources.",
+    "This section shows what is currently available and always links to official sources.",
   record_exports_title: "Recent plenary transcript exports",
   record_exports_empty: "No exports available right now.",
   data_title: "Data availability & transparency",
@@ -47,7 +64,7 @@ export const enStrings: Record<string, string> = {
   status_partial: "Partial",
   status_not_available: "Not available",
   footer_disclaimer:
-    "MVP: shows recorded participation only. All data links to official Senedd sources.",
+    "Shows recorded participation only. All data links to official Senedd sources.",
   no_verified_participation:
     "No verified recorded participation found in the indexed sources yet.",
   no_verified_votes:
@@ -68,11 +85,11 @@ export const enStrings: Record<string, string> = {
   real_votes_title: "Votes/divisions (plenary)",
   real_votes_desc:
     "Extracted from official vote exports where available. Each item links to the official record for verification.",
-  data_partial_warning: "Data is partial in the MVP (recent plenary exports only).",
+  data_partial_warning: "Coverage is partial (recent plenary exports only).",
   activity_indexed_note:
     "Activity metrics are based on currently indexed plenary sessions only.",
   data_note_limited_recent_plenary_exports:
-    "Limited to recent plenary exports (MVP).",
+    "Limited to recent plenary exports.",
   data_note_name_matching_uncertain:
     "Some matches are uncertain due to speaker-name formatting in the official export.",
   data_note_no_recent_contributions_found:
@@ -103,9 +120,9 @@ export const enStrings: Record<string, string> = {
     "This item is not available in the selected language. Showing the other official language instead.",
   language_label: "Language",
   loading: "Loading…",
-  why_matters_title: "Why this matters",
+  why_matters_title: "How to read this data",
   why_matters_body:
-    "For a Computational & Data Journalism dissertation, the key principle is epistemic transparency: clearly distinguishing what is measured, what is inferred, and what is unknown. This page prevents the MVP from implying \"attendance\" or completeness when only recorded participation is available.",
+    "Senedd Tracker shows recorded participation from indexed official plenary records. It does not measure attendance. Coverage is partial and may change as more sessions are indexed. Use the source links to verify context.",
   lang_switch: "Language",
   lang_en: "English",
   lang_cy: "Cymraeg",
@@ -119,6 +136,9 @@ export const enStrings: Record<string, string> = {
   not_found_desc: "The page you're looking for doesn't exist.",
   go_home: "Go home",
   install_app: "Install app",
+  hero_stat_members: "Members tracked",
+  hero_stat_bilingual: "Bilingual",
+  hero_stat_source: "Official record",
 };
 
 export type Lang = "en" | "cy";
@@ -127,18 +147,56 @@ export type Lang = "en" | "cy";
 export const cyStrings: Partial<Record<string, string>> = {
   nav_home: "Hafan",
   nav_data: "Argaeledd data",
+  app_subtitle_short: "Dangosfwrdd cyfranogiad",
+  hero_eyebrow: "Cofnod swyddogol y cyfarfod llawn • Dangosfwrdd aelod",
+  hero_title_a: "Dilynwch eich",
+  hero_title_b: "Aelod o’r Senedd",
+  hero_desc:
+    "Chwiliwch drwy god post neu etholaeth i ddod o hyd i’ch Aelod o’r Senedd ac i weld eu cyfranogiad wedi’i gofnodi mewn sesiynau cyfarfod llawn diweddar (cyfraniadau llafar a phleidleisiau), gyda dolenni ffynhonnell i’w wirio.",
+  loading_short: "Wrthi’n chwilio…",
+  recent_searches: "Chwiliadau diweddar",
+  clear_history: "Clirio",
+  member_party: "Plaid",
+  member_area: "Etholaeth / Rhanbarth",
+  view_dashboard: "Gweld dangosfwrdd",
+  feature1_title: "Cofnodion swyddogol",
+  feature1_desc:
+    "Mae’r data cyfranogiad yn cael ei dynnu’n uniongyrchol o allforion swyddogol Cofnod y Trafodion — dim tybiaethau, dim dyfalu.",
+  feature2_title: "Data tryloyw",
+  feature2_desc:
+    "Mae pob pwynt data wedi’i labelu’n glir fel wedi’i wirio, yn rhannol, neu heb fod ar gael. Nid ydym byth yn awgrymu mwy nag y gallwn ei gadarnhau.",
+  feature3_title: "Dwyieithog",
+  feature3_desc:
+    "Mae’r traciwr yn cefnogi Saesneg a Chymraeg, gan adlewyrchu natur ddwyieithog cofnodion swyddogol y Senedd.",
+  landing_steps_title: "Sut mae Senedd Tracker yn gweithio",
+  landing_steps_desc: "Piblinell syml wedi’i chynllunio ar gyfer eglurder, dilysu, a defnydd dinesig hirdymor.",
+  landing_step1_title: "Chwiliwch eich ardal",
+  landing_step1_desc: "Rhowch god post neu enw etholaeth/rhanbarth i ddod o hyd i’r AS(au) perthnasol.",
+  landing_step2_title: "Mynegeio allforion swyddogol",
+  landing_step2_desc: "Mae’r cefnben yn nôl ac yn storio allforion trawsgrifiadau a phleidleisiau swyddogol.",
+  landing_step3_title: "Dangos eitemau wedi’u gwirio",
+  landing_step3_desc: "Rydym yn echdynnu eitemau fesul aelod gyda labeli hyder ac yn cysylltu â’r cofnod swyddogol.",
+  landing_coverage_title: "Beth sydd wedi’i gynnwys ar hyn o bryd",
+  landing_coverage_desc: "Mae’r cwmpas ar hyn o bryd wedi’i gyfyngu i sesiynau cyfarfod llawn diweddar sydd wedi’u mynegeio.",
+  landing_chip_speeches: "Cyfraniadau llafar",
+  landing_chip_votes: "Pleidleisiau/rhaniadau",
+  landing_chip_confidence: "Labeli hyder",
+  landing_verify_title: "Pam rydym yn cysylltu â’r cofnod swyddogol",
+  landing_verify_body:
+    "Mae Senedd Tracker yn eich helpu i ddod o hyd i eitemau perthnasol yn gyflym, ond y cofnod swyddogol yw’r ffynhonnell awdurdodol ar gyfer y cyd-destun llawn. Defnyddiwch y dolenni i wirio dyfyniadau a phenderfyniadau.",
+  footer_disclaimer: "Yn dangos cyfranogiad wedi’i gofnodi yn unig. Mae’r holl ddata yn cysylltu â ffynonellau swyddogol y Senedd.",
   search_title: "Dod o hyd i’ch Aelod o’r Senedd",
   search_help: "Chwiliwch drwy god post neu enw etholaeth/rhanbarth.",
   search_placeholder: "e.e. CF10 1EP neu Canol Caerdydd",
   search_button: "Chwilio",
   results_title: "Canlyniadau",
   results_empty: "Dim canlyniadau. Rhowch sillafu arall neu defnyddiwch god post.",
-  view_dashboard: "Gweld dangosfwrdd",
   member_profile: "Proffil swyddogol",
   member_summary: "Trosolwg aelod",
   member_overview_generated:
     "Mae’r dangosfwrdd hwn yn mynegeio trawsgrifiadau cyfarfod llawn diweddar. Mae {count} o gyfraniadau llafar wedi eu gwirio wedi eu mynegeio ar gyfer yr Aelod hwn.",
   member_missing: "Nid yw manylion yr aelod ar gael. Ewch yn ôl a chwiliwch eto.",
+  participation_help: "Mae’r adran hon yn dangos beth sydd ar gael ar hyn o bryd ac mae bob amser yn cysylltu â ffynonellau swyddogol.",
   activity_summary: "Crynodeb gweithgarwch",
   total_contributions: "Cyfanswm y cyfraniadau llafar",
   last_30_days: "30 diwrnod diwethaf",
@@ -174,11 +232,41 @@ export const cyStrings: Partial<Record<string, string>> = {
   copy_link: "Rhannu",
   copied: "Dolen wedi ei chopïo!",
   refresh_success: "Data wedi ei adnewyddu",
+  scroll_to_top: "Yn ôl i'r brig",
+  page_not_found: "Tudalen heb ei chanfod",
+  not_found_desc: "Nid yw'r dudalen rydych chi'n chwilio amdani yn bodoli.",
+  go_home: "Mynd adref",
+  install_app: "Gosod yr ap",
+  data_title: "Argaeledd data a thryloywder",
+  data_help:
+    "Mae pob metrig data wedi'i labelu fel ar gael, yn rhannol ar gael, neu heb fod ar gael. Mae data coll yn cael ei ddangos yn benodol — nid yw byth yn cael ei guddio.",
+  data_metrics_heading: "Metrigau data",
+  real_spoken_title: "Cyfraniadau llafar (cyfarfod llawn)",
+  real_spoken_desc:
+    "Wedi'u tynnu o allforion swyddogol Cofnod y Trafodion. Mae pob eitem yn cynnwys label hyder a dolen ffynhonnell.",
+  record_exports_title: "Allforion trawsgrifiad cyfarfod llawn diweddar",
+  record_exports_empty: "Dim allforion ar gael ar hyn o bryd.",
+  exports_desc:
+    "Dyma'r trawsgrifiadau cyfarfod llawn swyddogol y mae Senedd Tracker yn eu mynegeio i echdynnu cyfraniadau llafar fesul aelod. Agorwch y cofnod swyddogol i ddarllen y sesiwn lawn yn ei gyd-destun.",
+  data_note_name_matching_uncertain:
+    "Mae rhai cyfatebiaethau'n ansicr oherwydd fformatiad enw siaradwr yn yr allforio swyddogol.",
+  data_note_no_recent_contributions_found:
+    "Heb ganfod cyfraniadau cyfatebol yn yr allforion diweddar sydd wedi'u mynegeio.",
+  data_note_upstream_or_parse_issue:
+    "Methu nôl nac i ddehongli rhai allforion swyddogol ar hyn o bryd.",
+  hero_stat_members: "Aelodau wedi'u tracio",
+  hero_stat_bilingual: "Dwyieithog",
+  hero_stat_source: "Cofnod swyddogol",
   no_verified_participation:
     "Heb ganfod cyfranogiad wedi ei gofnodi wedi ei ddilysu yn y ffynonellau wedi eu mynegeio eto.",
+  data_partial_warning: "Mae’r cwmpas yn rhannol (allforion cyfarfod llawn diweddar yn unig).",
+  data_note_limited_recent_plenary_exports: "Wedi’i gyfyngu i allforion cyfarfod llawn diweddar.",
   no_verified_votes:
     "Heb ganfod pleidleisiau/rhaniadau wedi eu dilysu yn y ffynonellau wedi eu mynegeio eto.",
   real_votes_title: "Pleidleisiau/rhaniadau (cyfarfod llawn)",
   real_votes_desc:
     "Wedi ei dynnu o allforion pleidleisio swyddogol lle bo ar gael. Mae pob eitem yn cysylltu â’r cofnod swyddogol i’w wirio.",
+  why_matters_title: "Sut i ddarllen y data hwn",
+  why_matters_body:
+    "Mae Senedd Tracker yn dangos cyfranogiad wedi’i gofnodi o gofnodion swyddogol y cyfarfod llawn sydd wedi’u mynegeio. Nid yw’n mesur presenoldeb. Mae’r cwmpas yn rhannol ac fe all newid wrth i fwy o sesiynau gael eu mynegeio. Defnyddiwch y dolenni ffynhonnell i wirio’r cyd-destun.",
 };
