@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../../i18n/I18nContext";
+import { MemberAvatar } from "../MemberAvatar";
 import * as api from "../../lib/api";
 
 export default function HomePage() {
@@ -75,12 +76,15 @@ export default function HomePage() {
               {results.members.map((m) => (
                 <div className="listItem" key={m.id}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ fontWeight: 800 }}>{m.name}</div>
-                      <div className="muted" style={{ marginTop: 4 }}>
-                        {m.party ? `${t("member_party")}: ${m.party}` : null}
-                        {m.party && (m.areaName || m.areaType) ? " · " : null}
-                        {m.areaName || m.areaType ? `${t("member_area")}: ${[m.areaName, m.areaType].filter(Boolean).join(" ")}` : null}
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <MemberAvatar name={m.name} imageUrl={m.imageUrl} size={40} />
+                      <div>
+                        <div style={{ fontWeight: 800 }}>{m.name}</div>
+                        <div className="muted" style={{ marginTop: 4 }}>
+                          {m.party ? `${t("member_party")}: ${m.party}` : null}
+                          {m.party && (m.areaName || m.areaType) ? " · " : null}
+                          {m.areaName || m.areaType ? `${t("member_area")}: ${[m.areaName, m.areaType].filter(Boolean).join(" ")}` : null}
+                        </div>
                       </div>
                     </div>
                     <button

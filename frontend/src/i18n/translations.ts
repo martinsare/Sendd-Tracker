@@ -115,6 +115,7 @@ export const enStrings: Record<string, string> = {
   read_full: "Read full text",
   close: "Close",
   official_source: "Official source",
+  watch_video: "Watch video",
   full_text_unavailable: "Full text is not available yet. Try refreshing data.",
   full_text_fallback_other_language:
     "This item is not available in the selected language. Showing the other official language instead.",
@@ -209,6 +210,7 @@ export const cyStrings: Partial<Record<string, string>> = {
   read_full: "Darllen y testun llawn",
   close: "Cau",
   official_source: "Ffynhonnell swyddogol",
+  watch_video: "Gwylio fideo",
   full_text_unavailable: "Nid yw’r testun llawn ar gael eto. Ceisiwch adnewyddu data.",
   full_text_fallback_other_language:
     "Nid yw’r eitem hon ar gael yn yr iaith a ddewiswyd. Yn dangos yr iaith swyddogol arall yn lle hynny.",

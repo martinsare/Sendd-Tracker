@@ -139,6 +139,7 @@ async function parseAndStoreVotesMeeting(db: Db, args: { votesUrl: string; meeti
       `UPDATE members
        SET
          senedd_uid = COALESCE(members.senedd_uid, @senedd_uid),
+         image_url = COALESCE(members.image_url, @image_url),
          last_updated_at = @last_updated_at
        WHERE id = @id`,
     );
@@ -151,7 +152,12 @@ async function parseAndStoreVotesMeeting(db: Db, args: { votesUrl: string; meeti
       if (!match) continue;
 
       if (r.memberUid) {
-        backfillMemberStmt.run({ id: match.memberId, senedd_uid: r.memberUid, last_updated_at: now });
+        backfillMemberStmt.run({
+          id: match.memberId,
+          senedd_uid: r.memberUid,
+          image_url: `https://business.senedd.wales/mgPhoto.aspx?UID=${r.memberUid}`,
+          last_updated_at: now,
+        });
       }
 
       const result = upsertStmt.run({

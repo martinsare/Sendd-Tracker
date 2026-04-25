@@ -208,10 +208,29 @@ function loadMemberVotes(db: Db, memberId: string) {
       contextCy: r.voteNameCy ?? undefined,
       snippetEn,
       snippetCy: snippetCy || undefined,
+      vote: {
+        memberResult: normalizeVoteMemberResult(r.memberResult),
+        memberResultRaw: r.memberResult,
+        overallEn: r.voteResultEn ?? null,
+        overallCy: r.voteResultCy ?? null,
+        totals:
+          r.totalsFor != null && r.totalsAgainst != null && r.totalsAbstain != null
+            ? { for: r.totalsFor, against: r.totalsAgainst, abstain: r.totalsAbstain }
+            : null,
+      },
       sourceUrl: r.sourceUrl,
       confidence: r.confidence
     };
   });
+}
+
+function normalizeVoteMemberResult(input: string): "for" | "against" | "abstain" | null {
+  const s = (input ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "for" || s === "in favour" || s === "in favor") return "for";
+  if (s === "against") return "against";
+  if (s === "abstain" || s === "abstained") return "abstain";
+  return null;
 }
 
 function buildSummary(items: Array<{ occurredAt: string; title?: string; snippetEn?: string; snippetCy?: string; contextEn?: string; contextCy?: string }>) {

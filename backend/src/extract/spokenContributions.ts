@@ -200,6 +200,7 @@ async function parseAndStoreMeeting(
        SET
          senedd_uid = COALESCE(members.senedd_uid, @senedd_uid),
          profile_url = COALESCE(members.profile_url, @profile_url),
+         image_url = COALESCE(members.image_url, @image_url),
          last_updated_at = @last_updated_at
        WHERE id = @id`,
     );
@@ -231,6 +232,7 @@ async function parseAndStoreMeeting(
           id: match.memberId,
           senedd_uid: r.memberUid ?? null,
           profile_url: r.memberBioEnglish ?? null,
+          image_url: r.memberUid ? `https://business.senedd.wales/mgPhoto.aspx?UID=${r.memberUid}` : null,
           last_updated_at: extractedAt,
         });
       }

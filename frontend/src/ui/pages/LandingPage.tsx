@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useI18n } from "../../i18n/I18nContext";
+import { MemberAvatar } from "../MemberAvatar";
 import * as api from "../../lib/api";
 
 const HISTORY_KEY = "snt_recent_searches";
@@ -260,15 +261,18 @@ export default function LandingPage() {
                 <div className="stack stack--8">
                   {results.members.map((m) => (
                     <div className="member-item" key={m.id}>
-                      <div>
-                        <div className="member-item__name">{m.name}</div>
-                        <div className="member-item__meta">
-                          {[
-                            m.party ? `${t("member_party")}: ${m.party}` : null,
-                            m.areaName ? `${t("member_area")}: ${m.areaName}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                      <div className="member-item__left">
+                        <MemberAvatar name={m.name} imageUrl={m.imageUrl} size={44} />
+                        <div>
+                          <div className="member-item__name">{m.name}</div>
+                          <div className="member-item__meta">
+                            {[
+                              m.party ? `${t("member_party")}: ${m.party}` : null,
+                              m.areaName ? `${t("member_area")}: ${m.areaName}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
                         </div>
                       </div>
                       <button

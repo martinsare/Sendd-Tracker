@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS members (
   area_type TEXT,
   profile_url TEXT,
   image_url TEXT,
+  senedd_uid INTEGER,
   updated_at INTEGER NOT NULL,
   last_updated_at INTEGER
 );

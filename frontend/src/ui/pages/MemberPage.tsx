@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useI18n } from "../../i18n/I18nContext";
 import { LoadingSpinner } from "../Logo";
 import { useToast } from "../Toast";
+import { MemberAvatar } from "../MemberAvatar";
 import * as api from "../../lib/api";
 
 type MsLite = api.SearchResponse["members"][number];
@@ -79,6 +80,19 @@ interface VoteParsed {
   totals: { for: number; against: number; abstain: number } | null;
 }
 
+function parseVoteFromItem(it: api.ParticipationItem, lang: "en" | "cy"): VoteParsed {
+  if (it.vote) {
+    const overall =
+      (lang === "cy" ? it.vote.overallCy : it.vote.overallEn) ??
+      it.vote.overallEn ??
+      it.vote.overallCy ??
+      null;
+    return { memberResult: it.vote.memberResult, overall, totals: it.vote.totals };
+  }
+  const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
+  return parseVoteSnippet(snippet);
+}
+
 function parseVoteSnippet(snippet: string | null | undefined): VoteParsed {
   if (!snippet) return { memberResult: null, overall: null, totals: null };
   const memberMatch = /member result:\s*(for|against|abstain)/i.exec(snippet);
@@ -102,7 +116,8 @@ function VoteResultCard({ parsed }: { parsed: VoteParsed }) {
   const memberClass =
     parsed.memberResult === "for" ? "vote-verdict--for"
     : parsed.memberResult === "against" ? "vote-verdict--against"
-    : "vote-verdict--abstain";
+    : parsed.memberResult === "abstain" ? "vote-verdict--abstain"
+    : "vote-verdict--neutral";
 
   const memberLabel =
     parsed.memberResult === "for" ? "Voted For"
@@ -166,6 +181,15 @@ function recordPageUrl(meetingId: number) {
   return `https://record.senedd.wales/Plenary/${meetingId}`;
 }
 
+function isSeneddTvUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return u.hostname.toLowerCase().includes("senedd.tv");
+  } catch {
+    return false;
+  }
+}
+
 function ShareIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -182,6 +206,7 @@ export default function MemberPage() {
   const { id } = useParams();
   const { lang, t } = useI18n();
   const toast = useToast();
+  const [memberDetail, setMemberDetail] = useState<api.MemberResponse | null>(null);
   const [exports, setExports] = useState<api.PlenaryExportsResponse | null>(null);
   const [availability, setAvailability] = useState<api.DataAvailabilityResponse | null>(null);
   const [participation, setParticipation] = useState<api.ParticipationResponse | null>(null);
@@ -203,6 +228,7 @@ export default function MemberPage() {
 
   useEffect(() => {
     if (!id) return;
+    api.getMember(id).then(setMemberDetail).catch(() => setMemberDetail(null));
     setLoadingData(true);
     Promise.all([
       api.getRecentPlenaryExports(8).then(setExports).catch(() => setExports(null)),
@@ -227,6 +253,12 @@ export default function MemberPage() {
     );
   }
 
+  const memberName = memberDetail?.name ?? member?.name ?? null;
+  const memberParty = memberDetail?.party ?? member?.party ?? null;
+  const memberAreaName = memberDetail?.areaName ?? member?.areaName ?? null;
+  const memberProfileUrl = memberDetail?.profileUrl ?? member?.profileUrl ?? null;
+  const memberImageUrl = memberDetail?.imageUrl ?? member?.imageUrl ?? null;
+
   return (
     <>
       <div className="member-hero">
@@ -248,21 +280,26 @@ export default function MemberPage() {
             </button>
           </div>
 
-          {member ? (
+          {memberName ? (
             <>
-              <h1 className="member-hero__name">{member.name}</h1>
-              <div className="member-hero__meta">
-                {member.party && (
-                  <span className="badge badge--neutral">{member.party}</span>
-                )}
-                {member.areaName && (
-                  <span className="badge badge--neutral">{member.areaName}</span>
-                )}
-                {member.profileUrl && (
-                  <a className="link-pill" href={member.profileUrl} target="_blank" rel="noreferrer">
-                    {t("member_profile")} <ExternalIcon />
-                  </a>
-                )}
+              <div className="member-hero__header">
+                <MemberAvatar name={memberName} imageUrl={memberImageUrl} size={72} />
+                <div>
+                  <h1 className="member-hero__name">{memberName}</h1>
+                  <div className="member-hero__meta">
+                    {memberParty && (
+                      <span className="badge badge--neutral">{memberParty}</span>
+                    )}
+                    {memberAreaName && (
+                      <span className="badge badge--neutral">{memberAreaName}</span>
+                    )}
+                    {memberProfileUrl && (
+                      <a className="link-pill" href={memberProfileUrl} target="_blank" rel="noreferrer">
+                        {t("member_profile")} <ExternalIcon />
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
             </>
           ) : (
@@ -381,6 +418,9 @@ export default function MemberPage() {
                   .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
                   .map((it) => {
                     const meetingId = tryGetMeetingIdFromUrl(it.sourceUrl);
+                    const recordUrl = meetingId ? recordPageUrl(meetingId) : null;
+                    const showRecordLink = !!recordUrl && recordUrl !== it.sourceUrl;
+                    const showSourceLink = !recordUrl || recordUrl !== it.sourceUrl;
                     const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
                     return (
                       <div className="parl-item parl-item--speech" key={it.id}>
@@ -429,13 +469,14 @@ export default function MemberPage() {
                           >
                             {t("read_full")}
                           </button>
-                          {meetingId ? (
-                            <a className="parl-item__source-link" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
+                          {showRecordLink && recordUrl && (
+                            <a className="parl-item__source-link" href={recordUrl} target="_blank" rel="noreferrer">
                               {t("view_record_page")} <ExternalIcon />
                             </a>
-                          ) : (
+                          )}
+                          {showSourceLink && (
                             <a className="parl-item__source-link" href={it.sourceUrl} target="_blank" rel="noreferrer">
-                              {t("source_label")} <ExternalIcon />
+                              {isSeneddTvUrl(it.sourceUrl) ? t("watch_video") : t("source_label")} <ExternalIcon />
                             </a>
                           )}
                         </div>
@@ -469,7 +510,10 @@ export default function MemberPage() {
                   .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
                   .map((it) => {
                     const meetingId = tryGetMeetingIdFromUrl(it.sourceUrl);
-                    const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
+                    const recordUrl = meetingId ? recordPageUrl(meetingId) : null;
+                    const showRecordLink = !!recordUrl;
+                    const showSourceLink = !recordUrl || recordUrl !== it.sourceUrl;
+                    const parsedVote = parseVoteFromItem(it, lang);
                     return (
                       <div className="parl-item parl-item--vote" key={it.id}>
                         <div className="parl-item__meta">
@@ -482,13 +526,14 @@ export default function MemberPage() {
                           )}
                         </div>
                         <h3 className="parl-item__title">{it.title}</h3>
-                        <VoteResultCard parsed={parseVoteSnippet(snippet)} />
+                        <VoteResultCard parsed={parsedVote} />
                         <div className="parl-item__actions">
-                          {meetingId ? (
-                            <a className="parl-item__source-link" href={recordPageUrl(meetingId)} target="_blank" rel="noreferrer">
+                          {showRecordLink && recordUrl && (
+                            <a className="parl-item__source-link" href={recordUrl} target="_blank" rel="noreferrer">
                               {t("view_record_page")} <ExternalIcon />
                             </a>
-                          ) : (
+                          )}
+                          {showSourceLink && (
                             <a className="parl-item__source-link" href={it.sourceUrl} target="_blank" rel="noreferrer">
                               {t("source_label")} <ExternalIcon />
                             </a>
@@ -613,7 +658,7 @@ export default function MemberPage() {
                       {t("view_record_page")} <ExternalIcon />
                     </a>
                     <a className="link-pill" href={readerDetail.sourceUrl} target="_blank" rel="noreferrer">
-                      {t("official_source")} <ExternalIcon />
+                      {isSeneddTvUrl(readerDetail.sourceUrl) ? t("watch_video") : t("official_source")} <ExternalIcon />
                     </a>
                   </div>
                 ) : null}
