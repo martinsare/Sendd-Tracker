@@ -155,7 +155,7 @@ async function parseAndStoreVotesMeeting(db: Db, args: { votesUrl: string; meeti
         backfillMemberStmt.run({
           id: match.memberId,
           senedd_uid: r.memberUid,
-          image_url: `https://business.senedd.wales/mgPhoto.aspx?UID=${r.memberUid}`,
+          image_url: seneddBigPicUrl(r.memberUid),
           last_updated_at: now,
         });
       }
@@ -318,6 +318,13 @@ function parseMeetingId(url: string): number | null {
   } catch {
     return null;
   }
+}
+
+function seneddBigPicUrl(uid: number) {
+  const last3 = String(uid % 1000).padStart(3, "0");
+  const dirs = `${last3[2]}/${last3[1]}/${last3[0]}`;
+  const info = String(uid).padStart(8, "0");
+  return `https://business.senedd.wales/UserData/${dirs}/Info${info}/bigpic.jpg`;
 }
 
 function isStale(parsedAtMs: number) {

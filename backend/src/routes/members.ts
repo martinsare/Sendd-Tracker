@@ -13,7 +13,18 @@ export function registerMemberRoutes(router: Router, db: Db) {
            area_name as areaName,
            area_type as areaType,
            profile_url as profileUrl,
-           COALESCE(image_url, CASE WHEN senedd_uid IS NOT NULL THEN 'https://business.senedd.wales/mgPhoto.aspx?UID=' || senedd_uid END) as imageUrl,
+           COALESCE(
+             CASE
+               WHEN senedd_uid IS NULL THEN NULL
+               ELSE
+                 'https://business.senedd.wales/UserData/' ||
+                 substr(printf('%03d', senedd_uid % 1000), 3, 1) || '/' ||
+                 substr(printf('%03d', senedd_uid % 1000), 2, 1) || '/' ||
+                 substr(printf('%03d', senedd_uid % 1000), 1, 1) ||
+                 '/Info' || printf('%08d', senedd_uid) || '/bigpic.jpg'
+             END,
+             image_url
+           ) as imageUrl,
            updated_at as updatedAt
          FROM members WHERE id = ?`,
       )

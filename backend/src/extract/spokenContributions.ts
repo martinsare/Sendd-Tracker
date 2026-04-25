@@ -232,7 +232,7 @@ async function parseAndStoreMeeting(
           id: match.memberId,
           senedd_uid: r.memberUid ?? null,
           profile_url: r.memberBioEnglish ?? null,
-          image_url: r.memberUid ? `https://business.senedd.wales/mgPhoto.aspx?UID=${r.memberUid}` : null,
+          image_url: r.memberUid ? seneddBigPicUrl(r.memberUid) : null,
           last_updated_at: extractedAt,
         });
       }
@@ -277,6 +277,13 @@ function parseMeetingId(url: string): number | null {
   } catch {
     return null;
   }
+}
+
+function seneddBigPicUrl(uid: number) {
+  const last3 = String(uid % 1000).padStart(3, "0");
+  const dirs = `${last3[2]}/${last3[1]}/${last3[0]}`;
+  const info = String(uid).padStart(8, "0");
+  return `https://business.senedd.wales/UserData/${dirs}/Info${info}/bigpic.jpg`;
 }
 
 function isStale(parsedAtMs: number) {

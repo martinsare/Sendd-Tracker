@@ -11,6 +11,20 @@ export type DirectoryMember = {
   imageUrl?: string;
 };
 
+function sqlSeneddBigPicUrlExpr() {
+  return `
+    CASE
+      WHEN senedd_uid IS NULL THEN NULL
+      ELSE
+        'https://business.senedd.wales/UserData/' ||
+        substr(printf('%03d', senedd_uid % 1000), 3, 1) || '/' ||
+        substr(printf('%03d', senedd_uid % 1000), 2, 1) || '/' ||
+        substr(printf('%03d', senedd_uid % 1000), 1, 1) ||
+        '/Info' || printf('%08d', senedd_uid) || '/bigpic.jpg'
+    END
+  `;
+}
+
 export async function ensureMemberDirectorySeeded(db: Db) {
   const count = db
     .prepare(`SELECT COUNT(1) as c FROM members WHERE id LIKE 'senedd-6:%'`)
@@ -55,6 +69,7 @@ export function upsertDirectoryMembers(db: Db, members: Array<{ term: string; na
 
 export function findMembersForAreas(db: Db, args: { constituencyName?: string; regionName?: string }): DirectoryMember[] {
   const out: DirectoryMember[] = [];
+  const bigPicExpr = sqlSeneddBigPicUrlExpr();
 
   if (args.constituencyName) {
     const row = db
@@ -66,7 +81,7 @@ export function findMembersForAreas(db: Db, args: { constituencyName?: string; r
            area_name as areaName,
            area_type as areaType,
            profile_url as profileUrl,
-           COALESCE(image_url, CASE WHEN senedd_uid IS NOT NULL THEN 'https://business.senedd.wales/mgPhoto.aspx?UID=' || senedd_uid END) as imageUrl
+           COALESCE(${bigPicExpr}, image_url) as imageUrl
          FROM members
          WHERE lower(area_type) = 'constituency' AND lower(area_name) = lower(?)
          ORDER BY updated_at DESC
@@ -86,7 +101,7 @@ export function findMembersForAreas(db: Db, args: { constituencyName?: string; r
            area_name as areaName,
            area_type as areaType,
            profile_url as profileUrl,
-           COALESCE(image_url, CASE WHEN senedd_uid IS NOT NULL THEN 'https://business.senedd.wales/mgPhoto.aspx?UID=' || senedd_uid END) as imageUrl
+           COALESCE(${bigPicExpr}, image_url) as imageUrl
          FROM members
          WHERE lower(area_type) = 'region' AND lower(area_name) = lower(?)
          ORDER BY name ASC`,
@@ -101,6 +116,7 @@ export function findMembersForAreas(db: Db, args: { constituencyName?: string; r
 export function searchMembersByAreaOrName(db: Db, query: string): DirectoryMember[] {
   const q = query.trim();
   if (!q) return [];
+  const bigPicExpr = sqlSeneddBigPicUrlExpr();
 
   // Try exact area name first (constituency/region).
   const exactArea = db
@@ -112,7 +128,7 @@ export function searchMembersByAreaOrName(db: Db, query: string): DirectoryMembe
          area_name as areaName,
          area_type as areaType,
          profile_url as profileUrl,
-         COALESCE(image_url, CASE WHEN senedd_uid IS NOT NULL THEN 'https://business.senedd.wales/mgPhoto.aspx?UID=' || senedd_uid END) as imageUrl
+         COALESCE(${bigPicExpr}, image_url) as imageUrl
        FROM members
        WHERE lower(area_name) = lower(?)
        ORDER BY area_type ASC, name ASC`,
@@ -131,7 +147,7 @@ export function searchMembersByAreaOrName(db: Db, query: string): DirectoryMembe
          area_name as areaName,
          area_type as areaType,
          profile_url as profileUrl,
-         COALESCE(image_url, CASE WHEN senedd_uid IS NOT NULL THEN 'https://business.senedd.wales/mgPhoto.aspx?UID=' || senedd_uid END) as imageUrl
+         COALESCE(${bigPicExpr}, image_url) as imageUrl
        FROM members
        WHERE lower(name) LIKE ?
        ORDER BY name ASC
