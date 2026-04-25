@@ -52,12 +52,23 @@ export function classifyTopicsFromText(text: string): Topic[] {
   return dedupe(hits);
 }
 
+export function primaryTopicFromText(text: string): Topic | null {
+  const normalized = normalize(text);
+  if (!normalized) return null;
+  for (const rule of RULES) {
+    for (const kw of rule.keywords) {
+      if (normalized.includes(normalize(kw))) return rule.topic;
+    }
+  }
+  return null;
+}
+
 export function topTopicsFromItems(items: Array<{ title?: string; snippetEn?: string; snippetCy?: string; contextEn?: string; contextCy?: string }>, topN = 3): Topic[] {
   const counts = new Map<Topic, number>();
   for (const it of items) {
     const text = [it.title, it.contextEn, it.contextCy, it.snippetEn, it.snippetCy].filter(Boolean).join(" ");
-    const topics = classifyTopicsFromText(text);
-    for (const t of topics) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const topic = primaryTopicFromText(text);
+    if (topic) counts.set(topic, (counts.get(topic) ?? 0) + 1);
   }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -69,8 +80,8 @@ export function topicBreakdownFromItems(items: Array<{ title?: string; snippetEn
   const counts = new Map<Topic, number>();
   for (const it of items) {
     const text = [it.title, it.contextEn, it.contextCy, it.snippetEn, it.snippetCy].filter(Boolean).join(" ");
-    const topics = classifyTopicsFromText(text);
-    for (const t of topics) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const topic = primaryTopicFromText(text);
+    if (topic) counts.set(topic, (counts.get(topic) ?? 0) + 1);
   }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])

@@ -66,6 +66,12 @@ export type ParticipationResponse = {
     topicBreakdown: Array<{ topic: string; count: number }>;
     activityLevel: "Low" | "Moderate" | "High";
   };
+  committees?: {
+    implemented: boolean;
+    partial: boolean;
+    daysBack: number;
+    totalMeetingsFound: number;
+  };
 };
 
 export type ParticipationItem = {
@@ -77,10 +83,19 @@ export type ParticipationItem = {
   contextCy?: string;
   snippetEn: string;
   snippetCy?: string;
+  topics?: string[];
+  primaryTopic?: string | null;
   sourceUrl: string;
   confidence: "high" | "medium" | "low";
+  committee?: {
+    committeeId: number | null;
+    committeeTitle: string | null;
+    attendance: string;
+    meetingLocation: string | null;
+    isWebcast: boolean | null;
+  };
   vote?: {
-    memberResult: "for" | "against" | "abstain" | null;
+    memberResult: "for" | "against" | "abstain" | "did_not_vote" | null;
     memberResultRaw: string;
     overallEn: string | null;
     overallCy: string | null;

@@ -1,6 +1,6 @@
 # Senedd Tracker (MVP)
 
-Full-stack civic data dashboard MVP that helps users look up their Member of the Senedd (MS) by postcode or constituency/region name and view **recorded participation** (not "attendance"), with transparent data availability and source links.
+Full-stack civic dashboard MVP that helps users look up their Member of the Senedd (MS) by postcode or constituency/region name and view **recorded participation** with transparent data availability and official source links.
 
 ## Tech
 - React (Vite) frontend
@@ -47,8 +47,10 @@ React UI (frontend)  ----->  Senedd Tracker API (backend)  ----->  Public source
   - Then matches those areas to elected Members of the Senedd (MSs) using Senedd Business election results
   - Name/area search: searches the MS directory by member name, constituency, or region
 - `GET /api/members/:id` (reads from SQLite member cache populated by searches)
+- `GET /api/members/:id/photo` (proxies the official Senedd Business photo where available)
 - `GET /api/members/:id/participation`
-  - Returns extracted spoken contributions (plenary) when available
+  - Returns extracted plenary contributions (including headings such as questions/motions where clearly indicated) and plenary votes where available
+  - Also includes recent committee meeting attendance items where recorded in official meeting information
   - If nothing is indexed yet, the UI shows an explicit "no verified recorded participation found" message (no fabricated participation is ever displayed)
 - `GET /api/record/plenary/exports?limit=...` (links to official transcript/vote exports)
 - `GET /api/data-availability` (transparency model used by the UI)
@@ -59,16 +61,18 @@ See `backend/schema.sql` (applied automatically on backend startup in `backend/s
 ## Public sources used (via backend only)
 - MapIt (mySociety): postcode -> Senedd constituency/region lookup.
 - Senedd Business (ModernGov web service): election results used to build a directory of elected MSs (constituency and region).
-- Senedd Record of Proceedings (`record.senedd.wales`): plenary transcript exports used for spoken contributions, plus official links for verification.
+- Senedd Record of Proceedings (`record.senedd.wales`): plenary transcript and vote exports used for per-member extraction, plus official links for verification.
+- Senedd Business meeting information (`mgwebservice.asmx`): meeting lists and attendee data used for committee meeting attendance items.
 
-The MVP intentionally avoids claiming "attendance" and does not infer missing activity.
+The MVP avoids inferring missing activity. If an item is visible in the dashboard, it must come from a linked official source.
 The system does not display fabricated participation data: if an item is visible in the dashboard, it must come from an official source link.
 
 ## Data pipeline (plain English)
 1. Postcode input -> MapIt returns the Senedd constituency and region for that postcode.
 2. Constituency/region -> Senedd Business election results provide the elected MS(s) for those areas.
-3. Record of Proceedings exports -> the backend indexes recent plenary transcripts and extracts spoken contribution snippets by member name.
-4. The dashboard displays only what is found in the indexed official sources, with source links and confidence labels.
+3. Record of Proceedings exports -> the backend indexes recent plenary transcripts and votes, and extracts per-member items.
+4. Senedd Business meeting info -> the backend indexes recent committee meetings and matches attendance where recorded.
+5. The dashboard displays only what is found in indexed official sources, with source links and confidence labels.
 
 ## Spoken contributions extraction (implemented)
 Senedd Tracker extracts **spoken contributions** (recorded participation) from official Senedd Record of Proceedings exports:
@@ -82,7 +86,7 @@ Senedd Tracker extracts **spoken contributions** (recorded participation) from o
 - Output: the member dashboard shows a timeline of real spoken contribution snippets with source links and confidence labels.
 
 ### Limitations (made explicit in the UI)
-- Coverage is **partial**: only a small number of recent Plenary exports are indexed in the MVP.
+- Coverage is **partial**: only a limited number of recent meetings are indexed in the MVP (plenary + committee).
 - Matching is name-based (not an authoritative cross-ID mapping), so some items may be `medium`/`low` confidence or not attributed at all.
 - The app does **not** auto-translate political text. It only displays the official transcript text provided in the export.
 
@@ -98,8 +102,10 @@ This milestone uses a verified **official** source (Senedd Record of Proceedings
 ### Available data sources (and what they support)
 - Postcode -> constituency/region: supported by MapIt.
 - Constituency/region -> MSs: supported by Senedd Business election results.
-- Recorded participation (spoken contributions): supported by Senedd Record of Proceedings transcript exports.
-- Attendance: not shown (not verified as a complete dataset for this MVP).
+- Plenary contributions (incl. headings for questions/motions where explicit): supported by Senedd Record of Proceedings transcript exports.
+- Plenary votes/divisions: supported by Senedd Record of Proceedings vote exports.
+- Committee meeting attendance (where recorded): supported by Senedd Business meeting information (attendees list).
+- Attendance (general/plenary): still **partial** and not treated as definitive attendance across all contexts.
 
 ## Live / continuous updates (dev/demo)
 The MVP is designed to keep working beyond the dissertation with a simple refresh loop:

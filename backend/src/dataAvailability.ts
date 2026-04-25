@@ -48,12 +48,17 @@ export const availabilityMetrics: AvailabilityMetric[] = [
   {
     id: "attendance",
     label: { en: "Attendance", cy: "Presenoldeb" },
-    status: "not_available",
+    status: "partial",
     explanation: {
-      en: "Not available / not verified in this MVP. Senedd Tracker intentionally reports recorded participation, not attendance, unless a reliable official dataset is verified.",
-      cy: "Ddim ar gael / heb ei ddilysu yn yr MVP hwn. Mae Senedd Tracker yn adrodd ar gyfranogiad wedi ei gofnodi, nid presenoldeb, oni bai bod set ddata swyddogol ddibynadwy wedi ei ddilysu."
+      en: "Partial: committee meeting attendance is derived from official Senedd Business meeting information (attendee lists). Plenary attendance is not reliably recorded in this feed and is not treated as definitive attendance.",
+      cy: "Yn rhannol: deillir presenoldeb cyfarfodydd pwyllgor o wybodaeth swyddogol am gyfarfodydd ar Busnes y Senedd (rhestrau mynychwyr). Nid yw presenoldeb cyfarfod llawn yn cael ei gofnodi’n ddibynadwy yn y ffrwd hon ac ni chaiff ei drin fel presenoldeb pendant."
     },
-    sourceLinks: [{ label: "Record of Proceedings", url: "https://record.senedd.wales/" }]
+    sourceLinks: [
+      // The attendance page requires a meeting `ID=`. Provide a stable example rather than the error page.
+      { label: "Senedd Business meeting attendance (example)", url: "https://business.senedd.wales/mgMeetingAttendance.aspx?ID=15766" },
+      { label: "Senedd Business meeting info (GetMeeting)", url: "https://business.senedd.wales/mgwebservice.asmx?op=GetMeeting" },
+      { label: "Senedd Business meeting list (GetAllMeetingsByDate)", url: "https://business.senedd.wales/mgwebservice.asmx?op=GetAllMeetingsByDate" }
+    ]
   },
   {
     id: "votes_divisions",
@@ -68,21 +73,25 @@ export const availabilityMetrics: AvailabilityMetric[] = [
   {
     id: "committee_involvement",
     label: { en: "Committee involvement", cy: "Cymryd rhan mewn pwyllgorau" },
-    status: "not_available",
+    status: "partial",
     explanation: {
-      en: "Not implemented in the MVP yet. Committee membership/meetings can likely be derived from Senedd Business data sources, but needs verification and careful modelling.",
-      cy: "Heb ei weithredu yn yr MVP eto. Gellid deillio aelodaeth/cyfarfodydd pwyllgor o ffynonellau Busnes y Senedd, ond mae angen dilysu a modelu gofalus."
+      en: "Partial: recent committee meetings are indexed from official Senedd Business meeting information and matched to Members via Senedd numeric IDs when present in attendee lists. Coverage is limited to indexed meetings and does not claim complete committee membership.",
+      cy: "Yn rhannol: mynegeir cyfarfodydd pwyllgor diweddar o wybodaeth swyddogol am gyfarfodydd ar Busnes y Senedd ac fe’u paru â’r Aelodau drwy ID rhifiadol y Senedd pan fo ar gael mewn rhestrau mynychwyr. Mae’r cwmpas wedi ei gyfyngu i gyfarfodydd sydd wedi’u mynegeio ac nid yw’n honni aelodaeth bwyllgor gyflawn."
     },
-    sourceLinks: [{ label: "Senedd Open Data", url: "https://senedd.wales/help/open-data/" }]
+    sourceLinks: [
+      { label: "Senedd Business meeting info (GetMeeting)", url: "https://business.senedd.wales/mgwebservice.asmx?op=GetMeeting" },
+      { label: "Senedd Business meeting list (GetAllMeetingsByDate)", url: "https://business.senedd.wales/mgwebservice.asmx?op=GetAllMeetingsByDate" },
+      { label: "Senedd Business committees (GetCommittees)", url: "https://business.senedd.wales/mgwebservice.asmx?op=GetCommittees" }
+    ]
   },
   {
     id: "questions_motions",
     label: { en: "Questions or motions", cy: "Cwestiynau neu gynigion" },
-    status: "not_available",
+    status: "partial",
     explanation: {
-      en: "Not implemented in the MVP yet. This requires verifying a stable public source and defining how items are attributed to an MS.",
-      cy: "Heb ei weithredu yn yr MVP eto. Mae hyn yn gofyn am ddilysu ffynhonnell gyhoeddus sefydlog a diffinio sut mae eitemau’n cael eu priodoli i AS."
+      en: "Partial: questions/motions are inferred from official plenary transcript headings when extracting per-member contributions. This does not yet include separate datasets for written questions or all motions outside indexed plenary exports.",
+      cy: "Yn rhannol: deillir cwestiynau/cynigion o benawdau swyddogol trawsgrifiadau cyfarfod llawn wrth echdynnu cyfraniadau fesul aelod. Nid yw hyn eto’n cynnwys setiau data ar wahân ar gyfer cwestiynau ysgrifenedig neu bob cynnig y tu allan i’r allforion cyfarfod llawn sydd wedi’u mynegeio."
     },
-    sourceLinks: [{ label: "Senedd Open Data", url: "https://senedd.wales/help/open-data/" }]
+    sourceLinks: [{ label: "Record of Proceedings (XML Export)", url: "https://record.senedd.wales/XMLExport" }]
   }
 ];

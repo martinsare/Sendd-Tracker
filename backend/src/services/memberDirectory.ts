@@ -88,7 +88,7 @@ export function findMembersForAreas(db: Db, args: { constituencyName?: string; r
          LIMIT 1`,
       )
       .get(args.constituencyName) as DirectoryMember | undefined;
-    if (row) out.push(row);
+    if (row) out.push(withPhotoProxyUrl(row));
   }
 
   if (args.regionName) {
@@ -107,7 +107,7 @@ export function findMembersForAreas(db: Db, args: { constituencyName?: string; r
          ORDER BY name ASC`,
       )
       .all(args.regionName) as DirectoryMember[];
-    out.push(...rows);
+    out.push(...rows.map(withPhotoProxyUrl));
   }
 
   return out;
@@ -134,11 +134,11 @@ export function searchMembersByAreaOrName(db: Db, query: string): DirectoryMembe
        ORDER BY area_type ASC, name ASC`,
     )
     .all(q) as DirectoryMember[];
-  if (exactArea.length) return exactArea;
+  if (exactArea.length) return exactArea.map(withPhotoProxyUrl);
 
   // Fallback: name contains query.
   const like = `%${q.toLowerCase()}%`;
-  return db
+  const rows = db
     .prepare(
       `SELECT
          id,
@@ -154,12 +154,19 @@ export function searchMembersByAreaOrName(db: Db, query: string): DirectoryMembe
        LIMIT 20`,
     )
     .all(like) as DirectoryMember[];
+
+  return rows.map(withPhotoProxyUrl);
 }
 
 function makeMemberId(term: string, name: string, areaType: string, areaName: string) {
   const base = slug(name);
   const disambiguator = slug(`${areaType}-${areaName}`).slice(0, 40);
   return `senedd-${term}:${base}:${disambiguator}`;
+}
+
+function withPhotoProxyUrl(m: DirectoryMember): DirectoryMember {
+  if (!m.imageUrl) return m;
+  return { ...m, imageUrl: `/api/members/${encodeURIComponent(m.id)}/photo` };
 }
 
 function slug(s: string) {
