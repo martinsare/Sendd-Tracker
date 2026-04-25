@@ -1052,6 +1052,68 @@ img {
   align-items: center;
 }
 
+/* ─── OVERVIEW PANELS ─────────────────────────────── */
+
+.overview-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mini-item {
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.mini-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.mini-item__date {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.mini-item__title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.mini-item__sub {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mini-item__actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ─── STATS GRID ──────────────────────────────────── */
 
 .stats-grid {

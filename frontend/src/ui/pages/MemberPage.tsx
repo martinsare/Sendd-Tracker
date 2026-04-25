@@ -570,6 +570,129 @@ export default function MemberPage() {
               </div>
               <div className="text-xs text-muted" style={{ marginTop: 10 }}>{t("activity_indexed_note")}</div>
             </section>
+
+            <section className="overview-panels">
+              <div className="card">
+                <div className="card__header">
+                  <div className="card__title">{t("latest_contributions")}</div>
+                  <button className="btn btn--ghost btn--sm" type="button" onClick={() => setActiveTab("contributions")}>
+                    {t("view_all_contributions")}
+                  </button>
+                </div>
+
+                {realContributions.length ? (
+                  <div className="mini-list">
+                    {realContributions
+                      .slice()
+                      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+                      .slice(0, 3)
+                      .map((it) => {
+                        const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
+                        return (
+                          <div className="mini-item" key={it.id}>
+                            <div className="mini-item__meta">
+                              <span className="mini-item__date">{formatDate(it.occurredAt)}</span>
+                              {confidenceBadge(
+                                it.confidence,
+                                it.confidence === "high" ? t("confidence_high")
+                                  : it.confidence === "medium" ? t("confidence_medium")
+                                    : t("confidence_low"),
+                              )}
+                            </div>
+                            <div className="mini-item__title">{it.title}</div>
+                            {snippet ? <div className="mini-item__sub">{snippet}</div> : null}
+                            <div className="mini-item__actions">
+                              <button className="btn btn--ghost btn--sm" type="button" onClick={() => void openSpeechReader(it)}>
+                                {t("read_full")}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <EmptyState>{t("no_items_yet")}</EmptyState>
+                )}
+              </div>
+
+              <div className="card">
+                <div className="card__header">
+                  <div className="card__title">{t("latest_votes")}</div>
+                  <button className="btn btn--ghost btn--sm" type="button" onClick={() => setActiveTab("votes")}>
+                    {t("view_all_votes")}
+                  </button>
+                </div>
+
+                {realVotes.length ? (
+                  <div className="mini-list">
+                    {realVotes
+                      .slice()
+                      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+                      .slice(0, 3)
+                      .map((it) => {
+                        const parsedVote = parseVoteFromItem(it, lang);
+                        const badgeClass =
+                          parsedVote.memberResult === "for" ? "badge--ok"
+                            : parsedVote.memberResult === "against" ? "badge--danger"
+                              : parsedVote.memberResult === "abstain" ? "badge--warn"
+                                : "badge--neutral";
+                        const label =
+                          parsedVote.memberResult === "for" ? t("vote_for")
+                            : parsedVote.memberResult === "against" ? t("vote_against")
+                              : parsedVote.memberResult === "abstain" ? t("vote_abstain")
+                                : parsedVote.memberResult === "did_not_vote" ? t("vote_did_not_vote")
+                                  : t("vote_unknown");
+
+                        return (
+                          <div className="mini-item" key={it.id}>
+                            <div className="mini-item__meta">
+                              <span className="mini-item__date">{formatDate(it.occurredAt)}</span>
+                              <span className={`badge ${badgeClass}`}>{label}</span>
+                            </div>
+                            <div className="mini-item__title">{it.title}</div>
+                            {parsedVote.overall ? <div className="mini-item__sub">{parsedVote.overall}</div> : null}
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <EmptyState>{t("no_items_yet")}</EmptyState>
+                )}
+              </div>
+
+              <div className="card">
+                <div className="card__header">
+                  <div className="card__title">{t("committee_meetings_title")}</div>
+                  <button className="btn btn--ghost btn--sm" type="button" onClick={() => setActiveTab("contributions")}>
+                    {t("view_all_committees")}
+                  </button>
+                </div>
+
+                {committeeMeetings.length ? (
+                  <div className="mini-list">
+                    {committeeMeetings
+                      .slice()
+                      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+                      .slice(0, 3)
+                      .map((it) => {
+                        const snippet = (lang === "cy" ? it.snippetCy : it.snippetEn) ?? it.snippetEn;
+                        return (
+                          <div className="mini-item" key={it.id}>
+                            <div className="mini-item__meta">
+                              <span className="mini-item__date">{formatDate(it.occurredAt)}</span>
+                              {confidenceBadge(it.confidence, t("confidence_high"))}
+                            </div>
+                            <div className="mini-item__title">{it.title}</div>
+                            {snippet ? <div className="mini-item__sub">{snippet}</div> : null}
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <EmptyState>{t("committee_none_found")}</EmptyState>
+                )}
+              </div>
+            </section>
           </div>
         )}
 
