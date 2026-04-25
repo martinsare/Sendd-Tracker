@@ -8,7 +8,7 @@ import * as api from "../../lib/api";
 
 type MsLite = api.SearchResponse["members"][number];
 type MemberTab = "overview" | "contributions" | "votes" | "sources";
-type VoteFilter = "all" | "for" | "against" | "abstain" | "did_not_vote";
+type VoteFilter = "cast" | "all" | "for" | "against" | "abstain" | "did_not_vote";
 
 function tabFromHash(hash: string): MemberTab {
   const h = (hash || "").replace(/^#/, "").trim().toLowerCase();
@@ -376,11 +376,15 @@ export default function MemberPage() {
   const filteredVotes = useMemo(() => {
     const items = realVotes.slice().sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     if (voteFilter === "all") return items;
+    if (voteFilter === "cast") return items.filter((v) => {
+      const r = parseVoteFromItem(v, lang).memberResult;
+      return r === "for" || r === "against" || r === "abstain";
+    });
     return items.filter((v) => parseVoteFromItem(v, lang).memberResult === voteFilter);
   }, [lang, realVotes, voteFilter]);
 
   const voteCounts = useMemo(() => {
-    const c = { all: realVotes.length, for: 0, against: 0, abstain: 0, did_not_vote: 0 };
+    const c = { all: realVotes.length, cast: 0, for: 0, against: 0, abstain: 0, did_not_vote: 0 };
     for (const v of realVotes) {
       const r = parseVoteFromItem(v, lang).memberResult;
       if (r === "for") c.for++;
@@ -388,6 +392,7 @@ export default function MemberPage() {
       if (r === "abstain") c.abstain++;
       if (r === "did_not_vote") c.did_not_vote++;
     }
+    c.cast = c.for + c.against + c.abstain;
     return c;
   }, [lang, realVotes]);
 
@@ -742,6 +747,9 @@ export default function MemberPage() {
               ) : (
                 <>
                   <div className="vote-filter" role="group" aria-label={t("vote_filter_label")}>
+                    <button type="button" className={`vote-filter__btn ${voteFilter === "cast" ? "vote-filter__btn--active" : ""}`} onClick={() => setVoteFilter("cast")}>
+                      {t("vote_filter_cast")} <span className="vote-filter__count">{voteCounts.cast}</span>
+                    </button>
                     <button type="button" className={`vote-filter__btn ${voteFilter === "all" ? "vote-filter__btn--active" : ""}`} onClick={() => setVoteFilter("all")}>
                       {t("vote_filter_all")} <span className="vote-filter__count">{voteCounts.all}</span>
                     </button>

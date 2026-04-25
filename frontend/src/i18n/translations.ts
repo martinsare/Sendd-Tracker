@@ -132,6 +132,7 @@ export const enStrings: Record<string, string> = {
   official_source: "Official source",
   watch_video: "Watch video",
   vote_filter_label: "Filter votes",
+  vote_filter_cast: "Cast votes",
   vote_filter_all: "All",
   vote_for: "For",
   vote_against: "Against",
@@ -139,6 +140,10 @@ export const enStrings: Record<string, string> = {
   vote_did_not_vote: "Did not vote",
   vote_unknown: "Unknown",
   vote_totals: "Vote totals",
+  vote_member_note_did_not_vote:
+    "This division took place, but no vote was recorded for this Member in the official export (e.g. absent or not voting). Totals shown are for the whole Senedd.",
+  vote_member_note_unknown:
+    "This division took place, but the Member’s recorded result is missing in the official export. Totals shown are for the whole Senedd.",
   showing_latest_n: "Showing latest {n}.",
   full_text_unavailable: "Full text is not available yet. Try refreshing data.",
   full_text_fallback_other_language:
@@ -247,6 +252,7 @@ export const cyStrings: Partial<Record<string, string>> = {
   official_source: "Ffynhonnell swyddogol",
   watch_video: "Gwylio fideo",
   vote_filter_label: "Hidlo pleidleisiau",
+  vote_filter_cast: "Pleidleisiau wedi’u bwrw",
   vote_filter_all: "Pob un",
   vote_for: "O blaid",
   vote_against: "Yn erbyn",
@@ -254,6 +260,10 @@ export const cyStrings: Partial<Record<string, string>> = {
   vote_did_not_vote: "Heb bleidleisio",
   vote_unknown: "Anhysbys",
   vote_totals: "Cyfansymiau pleidleisio",
+  vote_member_note_did_not_vote:
+    "Cynhaliwyd y bleidlais hon, ond nid oes pleidlais wedi’i chofnodi ar gyfer yr Aelod hwn yn yr allforio swyddogol (e.e. yn absennol neu heb bleidleisio). Mae’r cyfansymiau’n rhai ar gyfer y Senedd gyfan.",
+  vote_member_note_unknown:
+    "Cynhaliwyd y bleidlais hon, ond mae canlyniad yr Aelod ar goll yn yr allforio swyddogol. Mae’r cyfansymiau’n rhai ar gyfer y Senedd gyfan.",
   showing_latest_n: "Yn dangos y {n} diweddaraf.",
   full_text_unavailable: "Nid yw’r testun llawn ar gael eto. Ceisiwch adnewyddu data.",
   full_text_fallback_other_language:
