@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+backend/data/*.sqlite
+backend/data/*.sqlite-journal
+backend/data/*.sqlite-wal
+backend/data/*.sqlite-shm
+frontend/.vite
+.vite
+.DS_Store
+*.log

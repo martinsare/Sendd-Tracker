@@ -1,0 +1,17 @@
+{
+  "name": "Senedd Tracker",
+  "short_name": "Senedd",
+  "description": "Track your Member of the Senedd's recorded parliamentary participation.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0f1a",
+  "theme_color": "#c41230",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
