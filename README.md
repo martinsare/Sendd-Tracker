@@ -36,6 +36,9 @@ React UI (frontend)  ----->  Senedd Tracker API (backend)  ----->  Public source
    - Frontend: `http://localhost:5173`
    - Backend health: `http://localhost:5174/api/health`
 
+## Deployment
+See `DEPLOY.md`.
+
 ## Project structure
 - `backend/` Express API + SQLite cache + extractors
 - `frontend/` React (Vite) UI (bilingual-ready)

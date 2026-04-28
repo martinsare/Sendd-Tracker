@@ -80,7 +80,16 @@ async function handleParticipation(db: Db, memberId: string, opts?: { maxMeeting
     dataNotes.push("limited_to_recent_plenary_exports");
   }
 
-  const committeeItems = maxCommitteeMeetings > 0 ? await loadCommitteeMeetings(db, memberId, { daysBack: committeeDaysBack, limit: maxCommitteeMeetings }) : [];
+  let committeeItems: any[] = [];
+  if (maxCommitteeMeetings > 0) {
+    try {
+      committeeItems = await loadCommitteeMeetings(db, memberId, { daysBack: committeeDaysBack, limit: maxCommitteeMeetings });
+    } catch {
+      // Committee data is best-effort and should not break the participation endpoint if the Senedd endpoint is down.
+      dataNotes.push("committee_data_unavailable");
+      committeeItems = [];
+    }
+  }
 
   const items = [...speechItems, ...voteItems, ...committeeItems].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 

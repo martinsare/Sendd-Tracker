@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "node:path";
+import { existsSync } from "node:fs";
 import { env } from "./env.js";
 import { openDb } from "./db.js";
 import { purgeExpiredCache } from "./httpCache.js";
@@ -41,6 +43,18 @@ registerRefreshRoutes(api, db);
 registerContributionRoutes(api, db);
 
 app.use("/api", api);
+
+// Optional: serve the static frontend directly from the backend process.
+// Useful for Always Free micro VMs where installing a reverse proxy can be painful.
+const frontendDistPath =
+  env.frontendDistPath ?? path.resolve(process.cwd(), "..", "frontend", "dist");
+if (existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath, { index: false }));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+}
 
 app.listen(env.port, () => {
   // eslint-disable-next-line no-console
