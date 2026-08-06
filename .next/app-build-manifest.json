@@ -16,35 +16,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/api/health/route": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/health/route.js"
+      "static/chunks/app/_not-found/page.js"
     ],
-    "/api/search/route": [
+    "/data/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/search/route.js"
+      "static/chunks/app/data/page.js"
     ],
-    "/api/members/[id]/photo/route": [
+    "/api/data-availability/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/members/[id]/photo/route.js"
-    ],
-    "/member/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/member/[id]/page.js"
-    ],
-    "/api/members/[id]/participation/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/members/[id]/participation/route.js"
-    ],
-    "/api/members/[id]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/members/[id]/route.js"
+      "static/chunks/app/api/data-availability/route.js"
     ]
   }
 }

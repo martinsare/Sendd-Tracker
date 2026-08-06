@@ -1,39 +1,41 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type Props = {
-  memberId: string;
-  name: string;
-  imageUrl?: string | null;
-  size?: "sm" | "md" | "lg";
-};
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0] + parts[parts.length - 1]![0]).toUpperCase();
+function initialsForName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+  const out = `${first}${second}`.toUpperCase();
+  return out || "MS";
 }
 
-export default function MemberAvatar({ name, imageUrl, size = "md" }: Props) {
-  const [imgError, setImgError] = useState(false);
+export function MemberAvatar({ name, imageUrl, size = 44 }: { name: string; imageUrl?: string | null; size?: number }) {
+  const initials = initialsForName(name);
+  const style: React.CSSProperties = { width: size, height: size };
+  const [failed, setFailed] = useState(false);
 
-  const useInitials = !imageUrl || imgError;
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
 
   return (
-    <span className={`member-avatar member-avatar--${size}`} aria-label={name}>
-      {useInitials ? (
-        <span className="member-avatar__initials" aria-hidden="true">
-          {initials(name)}
-        </span>
-      ) : (
+    <div className="member-avatar" style={style} aria-label={name}>
+      {imageUrl && !failed ? (
         <img
-          src={imageUrl!}
-          alt={name}
           className="member-avatar__img"
-          onError={() => setImgError(true)}
+          src={imageUrl}
+          alt={`${name}`}
           loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
         />
+      ) : (
+        <div className="member-avatar__fallback" aria-hidden="true">
+          {initials}
+        </div>
       )}
-    </span>
+    </div>
   );
 }
+
+export default MemberAvatar;

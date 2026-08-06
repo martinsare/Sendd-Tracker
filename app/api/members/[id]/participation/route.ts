@@ -1,119 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { query } from "@/lib/db";
-import { topicBreakdownFromItems, topTopicsFromItems } from "@/lib/analysis/topics";
+import {
+  classifyTopicsFromText,
+  primaryTopicFromText,
+  topTopicsFromItems,
+  topicBreakdownFromItems,
+} from "@/lib/analysis/topics";
 
-const querySchema = z.object({
-  page: z.coerce.number().int().min(0).optional(),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  kind: z.enum(["contributions", "votes"]).optional(),
-});
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const { searchParams } = req.nextUrl;
-  const parsed = querySchema.safeParse({
-    page: searchParams.get("page"),
-    pageSize: searchParams.get("pageSize"),
-    kind: searchParams.get("kind"),
-  });
-
-  const page = parsed.success ? (parsed.data.page ?? 0) : 0;
-  const pageSize = parsed.success ? (parsed.data.pageSize ?? 20) : 20;
-  const kind = parsed.success ? parsed.data.kind : undefined;
-  const offset = page * pageSize;
-
-  const { rows: memberRows } = await query<{ name: string }>(
-    `SELECT name FROM members WHERE id = $1`, [id]
-  );
-  if (!memberRows[0])
-    return NextResponse.json({ error: "Member not found" }, { status: 404 });
-
-  const memberName = memberRows[0].name;
-
-  const contributions = (!kind || kind === "contributions")
-    ? await fetchContributions(id, pageSize, offset)
-    : [];
-
-  const votes = (!kind || kind === "votes")
-    ? await fetchVotes(id, pageSize, offset)
-    : [];
-
-  const { rows: scCount } = await query<{ c: string }>(
-    `SELECT COUNT(1) as c FROM spoken_contributions WHERE member_id = $1`, [id]
-  );
-  const { rows: mvCount } = await query<{ c: string }>(
-    `SELECT COUNT(1) as c FROM member_votes WHERE member_id = $1`, [id]
-  );
-
-  const totalContributions = Number(scCount[0]?.c ?? 0);
-  const totalVotes = Number(mvCount[0]?.c ?? 0);
-
-  const allForTopics = await fetchAllSnippetsForTopics(id);
-  const topTopics = topTopicsFromItems(allForTopics);
-  const topicBreakdown = topicBreakdownFromItems(allForTopics);
-
-  return NextResponse.json({
-    memberId: id,
-    memberName,
-    totalContributions,
-    totalVotes,
-    topTopics,
-    topicBreakdown,
-    page,
-    pageSize,
-    contributions,
-    votes,
-  });
+function inferSpeechKind(title: string, contextEn?: string): "speech" | "question" | "motion" {
+  const t = `${title} ${contextEn ?? ""}`.toLowerCase();
+  if (/\b(question|cwestiwn|oral question|written question)\b/.test(t)) return "question";
+  if (/\b(motion|cynnig|debate)\b/.test(t)) return "motion";
+  return "speech";
 }
 
-async function fetchContributions(memberId: string, limit: number, offset: number) {
+function normalizeVoteMemberResult(input: string): "for" | "against" | "abstain" | "did_not_vote" | null {
+  const s = (input ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "for" || s === "in favour" || s === "in favor") return "for";
+  if (s === "against") return "against";
+  if (s === "abstain" || s === "abstained") return "abstain";
+  if (s === "didnotvote" || s === "did not vote") return "did_not_vote";
+  return null;
+}
+
+async function loadSpokenContributions(memberId: string) {
   const { rows } = await query<{
-    id: string;
     meetingid: number;
     contributionid: number;
-    speakername: string;
     occurredat: string;
     contexten: string | null;
     contextcy: string | null;
     snippeten: string;
     snippetcy: string | null;
     sourceurl: string;
-    confidence: string;
+    confidence: "high" | "medium" | "low";
   }>(
-    `SELECT id, meeting_id as meetingid, contribution_id as contributionid,
-            speaker_name as speakername, occurred_at as occurredat,
-            context_en as contexten, context_cy as contextcy,
+    `SELECT meeting_id as meetingid, contribution_id as contributionid,
+            occurred_at as occurredat, context_en as contexten, context_cy as contextcy,
             snippet_en as snippeten, snippet_cy as snippetcy,
             source_url as sourceurl, confidence
      FROM spoken_contributions
      WHERE member_id = $1
-     ORDER BY occurred_at DESC, meeting_id DESC
-     LIMIT $2 OFFSET $3`,
-    [memberId, limit, offset]
+     ORDER BY occurred_at DESC, meeting_id DESC, contribution_id DESC
+     LIMIT 50`,
+    [memberId]
   );
 
-  return rows.map((r) => ({
-    id: String(r.id),
-    meetingId: r.meetingid,
-    contributionId: r.contributionid,
-    speakerName: r.speakername,
-    occurredAt: r.occurredat,
-    contextEn: r.contexten,
-    contextCy: r.contextcy,
-    snippetEn: r.snippeten,
-    snippetCy: r.snippetcy,
-    sourceUrl: r.sourceurl,
-    confidence: r.confidence,
-  }));
+  return rows.map((r) => {
+    const title = (r.contexten ?? r.contextcy ?? "Plenary contribution").trim();
+    const contextEn = r.contexten ?? undefined;
+    const contextCy = r.contextcy ?? undefined;
+    const snippetEn = r.snippeten;
+    const snippetCy = r.snippetcy ?? undefined;
+    const topicText = [title, contextEn, contextCy, snippetEn, snippetCy].filter(Boolean).join(" ");
+    const topics = classifyTopicsFromText(topicText);
+    const primaryTopic = primaryTopicFromText(topicText);
+    const kind = inferSpeechKind(title, contextEn);
+
+    return {
+      id: `spoken:${r.meetingid}:${r.contributionid}`,
+      kind,
+      occurredAt: r.occurredat,
+      title,
+      contextEn,
+      contextCy,
+      snippetEn,
+      snippetCy,
+      topics,
+      primaryTopic,
+      sourceUrl: r.sourceurl,
+      confidence: r.confidence,
+    };
+  });
 }
 
-async function fetchVotes(memberId: string, limit: number, offset: number) {
+async function loadMemberVotes(memberId: string) {
   const { rows } = await query<{
-    id: string;
     meetingid: number;
     contributionid: number;
     occurredat: string;
@@ -126,9 +89,9 @@ async function fetchVotes(memberId: string, limit: number, offset: number) {
     totalsabstain: number | null;
     memberresult: string;
     sourceurl: string;
-    confidence: string;
+    confidence: "high" | "medium" | "low";
   }>(
-    `SELECT id, meeting_id as meetingid, contribution_id as contributionid,
+    `SELECT meeting_id as meetingid, contribution_id as contributionid,
             occurred_at as occurredat,
             vote_name_en as votenameen, vote_name_cy as votenamecw,
             vote_result_en as voteresulten, vote_result_cy as voteresultcy,
@@ -136,39 +99,151 @@ async function fetchVotes(memberId: string, limit: number, offset: number) {
             member_result as memberresult, source_url as sourceurl, confidence
      FROM member_votes
      WHERE member_id = $1
-     ORDER BY occurred_at DESC, meeting_id DESC
-     LIMIT $2 OFFSET $3`,
-    [memberId, limit, offset]
-  );
-
-  return rows.map((r) => ({
-    id: String(r.id),
-    meetingId: r.meetingid,
-    contributionId: r.contributionid,
-    occurredAt: r.occurredat,
-    voteNameEn: r.votenameen,
-    voteNameCy: r.votenamecw,
-    voteResultEn: r.voteresulten,
-    voteResultCy: r.voteresultcy,
-    totalsFor: r.totalsfor,
-    totalsAgainst: r.totalsagainst,
-    totalsAbstain: r.totalsabstain,
-    memberResult: r.memberresult,
-    sourceUrl: r.sourceurl,
-    confidence: r.confidence,
-  }));
-}
-
-async function fetchAllSnippetsForTopics(memberId: string) {
-  const { rows } = await query<{ snippeten: string | null; snippetcy: string | null; contexten: string | null; contextcy: string | null }>(
-    `SELECT snippet_en as snippeten, snippet_cy as snippetcy, context_en as contexten, context_cy as contextcy
-     FROM spoken_contributions WHERE member_id = $1 LIMIT 200`,
+     ORDER BY occurred_at DESC, meeting_id DESC, contribution_id DESC
+     LIMIT 50`,
     [memberId]
   );
-  return rows.map((r) => ({
-    snippetEn: r.snippeten ?? undefined,
-    snippetCy: r.snippetcy ?? undefined,
-    contextEn: r.contexten ?? undefined,
-    contextCy: r.contextcy ?? undefined,
-  }));
+
+  return rows.map((r) => {
+    const totals =
+      r.totalsfor != null && r.totalsagainst != null && r.totalsabstain != null
+        ? `Totals: For ${r.totalsfor}, Against ${r.totalsagainst}, Abstain ${r.totalsabstain}.`
+        : "";
+
+    const snippetEn = [
+      `Member result: ${r.memberresult || "Unknown"}.`,
+      r.voteresulten ? `Overall: ${r.voteresulten}.` : "",
+      totals,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    const snippetCy = [
+      `Canlyniad yr Aelod: ${r.memberresult || "Anhysbys"}.`,
+      r.voteresultcy ? `Cyffredinol: ${r.voteresultcy}.` : "",
+      totals,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    return {
+      id: `vote:${r.meetingid}:${r.contributionid}`,
+      kind: "vote" as const,
+      occurredAt: r.occurredat,
+      title: (r.votenameen ?? r.votenamecw ?? "Vote").trim(),
+      contextEn: r.votenameen ?? undefined,
+      contextCy: r.votenamecw ?? undefined,
+      snippetEn,
+      snippetCy: snippetCy || undefined,
+      vote: {
+        memberResult: normalizeVoteMemberResult(r.memberresult),
+        memberResultRaw: r.memberresult,
+        overallEn: r.voteresulten ?? null,
+        overallCy: r.voteresultcy ?? null,
+        totals:
+          r.totalsfor != null && r.totalsagainst != null && r.totalsabstain != null
+            ? { for: r.totalsfor, against: r.totalsagainst, abstain: r.totalsabstain }
+            : null,
+      },
+      sourceUrl: r.sourceurl,
+      confidence: r.confidence,
+    };
+  });
+}
+
+function buildSummary(speechItems: Array<{ occurredAt: string; title?: string; snippetEn?: string; snippetCy?: string; contextEn?: string; contextCy?: string }>) {
+  const totalContributions = speechItems.length;
+  const now = new Date();
+  const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const contributionsLast30Days = speechItems.filter((i) => {
+    const d = new Date(i.occurredAt);
+    return Number.isFinite(d.getTime()) && d >= since;
+  }).length;
+
+  const monthCounts = new Map<string, number>();
+  for (const it of speechItems) {
+    const d = new Date(it.occurredAt);
+    if (!Number.isFinite(d.getTime())) continue;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    monthCounts.set(key, (monthCounts.get(key) ?? 0) + 1);
+  }
+  const mostActiveMonth = [...monthCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+
+  const topTopics = topTopicsFromItems(speechItems, 3);
+  const topicBreakdown = topicBreakdownFromItems(speechItems);
+  const activityLevel = totalContributions < 10 ? "Low" : totalContributions <= 50 ? "Moderate" : "High";
+
+  return { totalContributions, contributionsLast30Days, mostActiveMonth, topTopics, topicBreakdown, activityLevel };
+}
+
+async function computeLastUpdatedAt(): Promise<string | null> {
+  const results = await Promise.allSettled([
+    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, updated_at)) as v FROM members`),
+    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, extracted_at)) as v FROM spoken_contributions`),
+    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, extracted_at)) as v FROM member_votes`),
+  ]);
+
+  let max = 0;
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      const v = r.value.rows[0]?.v;
+      if (v) max = Math.max(max, Number(v));
+    }
+  }
+  return max ? new Date(max).toISOString() : null;
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    const [speechItems, voteItems, lastUpdatedAt] = await Promise.all([
+      loadSpokenContributions(id),
+      loadMemberVotes(id),
+      computeLastUpdatedAt(),
+    ]);
+
+    const items = [...speechItems, ...voteItems].sort((a, b) =>
+      b.occurredAt.localeCompare(a.occurredAt)
+    );
+
+    const dataNotes: string[] = ["limited_to_recent_plenary_exports"];
+    if (items.some((i) => i.confidence !== "high")) dataNotes.push("name_matching_uncertain");
+    if (speechItems.length === 0) dataNotes.push("no_recent_contributions_found");
+
+    const summary = buildSummary(speechItems);
+
+    return NextResponse.json({
+      memberId: id,
+      lastUpdatedAt,
+      real: {
+        implemented: true,
+        partial: true,
+        items,
+        dataNotes,
+        topicClassificationNote:
+          "Topic classification is based on keyword matching and may not fully reflect intent.",
+      },
+      summary: {
+        ...summary,
+        activityLevel: summary.activityLevel as "Low" | "Moderate" | "High",
+      },
+      committees: {
+        implemented: false,
+        partial: true,
+        daysBack: 0,
+        totalMeetingsFound: 0,
+      },
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: "Participation load failed", detail: String((e as Error)?.message ?? e) },
+      { status: 502 }
+    );
+  }
 }

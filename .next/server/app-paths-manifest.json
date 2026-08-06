@@ -1,9 +1,6 @@
 {
-  "/api/health/route": "app/api/health/route.js",
-  "/api/search/route": "app/api/search/route.js",
-  "/api/members/[id]/photo/route": "app/api/members/[id]/photo/route.js",
-  "/api/members/[id]/participation/route": "app/api/members/[id]/participation/route.js",
-  "/api/members/[id]/route": "app/api/members/[id]/route.js",
+  "/api/data-availability/route": "app/api/data-availability/route.js",
+  "/data/page": "app/data/page.js",
   "/page": "app/page.js",
-  "/member/[id]/page": "app/member/[id]/page.js"
+  "/_not-found/page": "app/_not-found/page.js"
 }

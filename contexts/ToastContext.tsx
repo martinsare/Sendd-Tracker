@@ -1,33 +1,49 @@
 "use client";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 
-type ToastMessage = { id: number; message: string; kind: "info" | "error" | "success" };
-type ToastContextValue = { addToast: (message: string, kind?: ToastMessage["kind"]) => void };
+type ToastType = "ok" | "error" | "info";
 
-const ToastContext = createContext<ToastContextValue>({ addToast: () => {} });
+interface ToastItem {
+  id: string;
+  message: string;
+  type: ToastType;
+}
+
+interface ToastContextValue {
+  show: (message: string, type?: ToastType) => void;
+}
+
+const ToastContext = createContext<ToastContextValue>({ show: () => {} });
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  let _id = 0;
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const timerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const addToast = useCallback((message: string, kind: ToastMessage["kind"] = "info") => {
-    const id = ++_id;
-    setToasts((prev) => [...prev, { id, message, kind }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  const dismiss = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    clearTimeout(timerRef.current[id]);
+    delete timerRef.current[id];
   }, []);
 
+  const show = useCallback((message: string, type: ToastType = "info") => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev.slice(-4), { id, message, type }]);
+    timerRef.current[id] = setTimeout(() => dismiss(id), 3500);
+  }, [dismiss]);
+
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastContext.Provider value={{ show }}>
       {children}
-      {toasts.length > 0 && (
-        <div className="toast-stack" aria-live="polite" aria-label="Notifications">
-          {toasts.map((toast) => (
-            <div key={toast.id} className={`toast toast--${toast.kind}`} role="alert">
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="toast-stack" aria-live="polite">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast toast--${t.type}`} onClick={() => dismiss(t.id)}>
+            <span className="toast__icon">
+              {t.type === "ok" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
+            </span>
+            <span className="toast__msg">{t.message}</span>
+          </div>
+        ))}
+      </div>
     </ToastContext.Provider>
   );
 }

@@ -1,71 +1,81 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/contexts/I18nContext";
-import { getDataAvailability, type AvailabilityMetric } from "@/lib/api";
+import * as api from "@/lib/api";
 
-function StatusPill({ status }: { status: AvailabilityMetric["status"] }) {
-  const label =
-    status === "available" ? "Available" :
-    status === "partial" ? "Partial" : "Not available";
-  return (
-    <span className={`status-pill status-pill--${status}`} aria-label={`Status: ${label}`}>
-      {label}
-    </span>
-  );
+function statusBadge(status: "available" | "partial" | "not_available", label: string) {
+  const variant = status === "available" ? "ok" : status === "partial" ? "warn" : "danger";
+  return <span className={`badge badge--${variant}`}>{label}</span>;
 }
 
-export default function DataPage() {
-  const { t, locale } = useI18n();
-  const [metrics, setMetrics] = useState<AvailabilityMetric[] | null>(null);
+export default function DataAvailabilityPage() {
+  const { lang, t } = useI18n();
+  const [data, setData] = useState<api.DataAvailabilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getDataAvailability()
-      .then((r) => setMetrics(r.metrics))
-      .catch((e: unknown) => setError(String((e as Error)?.message ?? e)));
+    api.getDataAvailability()
+      .then(setData)
+      .catch((e) => setError(String((e as Error)?.message ?? e)));
   }, []);
 
   return (
-    <div className="data-page">
-      <h1 className="page-title">{t("dataAvailabilityTitle")}</h1>
-      <p className="page-desc">{t("dataAvailabilityDesc")}</p>
+    <div className="container" style={{ paddingTop: 40, paddingBottom: 48 }}>
+      <div className="stack stack--24">
 
-      {error && <p className="error-message">{error}</p>}
-      {!metrics && !error && <p className="loading-text">{t("loading")}</p>}
+        <div>
+          <h1 className="hero__title" style={{ fontSize: "clamp(1.5rem, 4vw, 2rem)", marginBottom: 10 }}>
+            {t("data_title")}
+          </h1>
+          <p className="text-muted" style={{ maxWidth: 600, lineHeight: 1.7 }}>{t("data_help")}</p>
+        </div>
 
-      {metrics && (
-        <ul className="availability-list">
-          {metrics.map((m) => (
-            <li key={m.id} className="availability-item">
-              <div className="availability-item__header">
-                <h2 className="availability-item__label">
-                  {locale === "cy" ? m.label.cy : m.label.en}
-                </h2>
-                <StatusPill status={m.status} />
-              </div>
-              <p className="availability-item__desc">
-                {locale === "cy" ? m.explanation.cy : m.explanation.en}
-              </p>
-              {m.sourceLinks.length > 0 && (
-                <ul className="source-links">
-                  {m.sourceLinks.map((link) => (
-                    <li key={link.url}>
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="source-link"
-                      >
-                        {link.label} ↗
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+        {error && <div className="alert alert--danger">{error}</div>}
+
+        <section>
+          <h2 className="section-title">{t("data_metrics_heading")}</h2>
+
+          {!data ? (
+            <div className="loading-dots">{t("loading")}</div>
+          ) : (
+            <div className="stack stack--12">
+              {data.metrics.map((m) => (
+                <div className="data-metric" key={m.id}>
+                  <div className="data-metric__header">
+                    <div className="data-metric__name">{m.label[lang]}</div>
+                    {statusBadge(
+                      m.status,
+                      m.status === "available"
+                        ? t("status_available")
+                        : m.status === "partial"
+                          ? t("status_partial")
+                          : t("status_not_available")
+                    )}
+                  </div>
+                  <p className="data-metric__explanation">{m.explanation[lang]}</p>
+                  {m.sourceLinks.length > 0 && (
+                    <div className="data-metric__links">
+                      {m.sourceLinks.map((s) => (
+                        <a key={s.url} className="link-pill" href={s.url} target="_blank" rel="noreferrer">
+                          {s.label} ↗
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <div className="card">
+            <h2 className="card__title" style={{ marginBottom: 12 }}>{t("why_matters_title")}</h2>
+            <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.7 }}>{t("why_matters_body")}</p>
+          </div>
+        </section>
+
+      </div>
     </div>
   );
 }
