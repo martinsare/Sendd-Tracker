@@ -11,3 +11,4 @@ frontend/.vite
 .vite
 .DS_Store
 *.log
+.next

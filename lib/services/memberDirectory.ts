@@ -11,14 +11,8 @@ export type DirectoryMember = {
   imageUrl?: string;
 };
 
-/** Ensure the member directory has been seeded from TWFY. */
+  /** Ensure the member directory has been seeded from TWFY. */
 export async function ensureMemberDirectorySeeded(): Promise<void> {
-  const { rows } = await query<{ c: string }>(
-    `SELECT COUNT(1) as c FROM members WHERE id LIKE 'twfy:%'`
-  );
-  const count = Number(rows[0]?.c ?? 0);
-  if (count >= 20) return; // already seeded
-
   const members = await fetchAllMSs();
   await upsertDirectoryMembers(members.map((m) => ({
     personId: m.person_id,
@@ -44,6 +38,7 @@ export async function upsertDirectoryMembers(
            name=EXCLUDED.name,
            party=COALESCE(EXCLUDED.party, members.party),
            area_name=COALESCE(EXCLUDED.area_name, members.area_name),
+           image_url=COALESCE(EXCLUDED.image_url, members.image_url),
            updated_at=EXCLUDED.updated_at,
            last_updated_at=EXCLUDED.last_updated_at`,
         [id, m.name, m.party ?? null, m.constituency, imageUrl, now, now]

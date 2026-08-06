@@ -8,8 +8,12 @@ declare global {
 
 function getPool(): Pool {
   if (!globalThis._pgPool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is required for the Supabase database connection.");
+    }
     globalThis._pgPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,

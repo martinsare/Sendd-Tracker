@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/contexts/I18nContext";
 import { MemberAvatar } from "@/components/MemberAvatar";
@@ -80,14 +79,6 @@ function GlobeIcon() {
       <path d="M2 12h20" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
-  );
-}
-
-function StepBadge({ n }: { n: 1 | 2 | 3 }) {
-  return (
-    <div className="step-badge" aria-hidden="true">
-      {n}
-    </div>
   );
 }
 
@@ -302,71 +293,6 @@ export default function LandingPage() {
       {!results && (
         <section className="features">
           <div className="container">
-            <div className="stack stack--16">
-              <div>
-                <h2 className="section-title">{t("landing_steps_title")}</h2>
-                <p className="section-sub">{t("landing_steps_desc")}</p>
-              </div>
-
-              <div className="steps-grid">
-                <div className="step-card">
-                  <div className="step-card__head">
-                    <StepBadge n={1} />
-                    <div className="step-card__title">{t("landing_step1_title")}</div>
-                  </div>
-                  <div className="step-card__desc">{t("landing_step1_desc")}</div>
-                </div>
-                <div className="step-card">
-                  <div className="step-card__head">
-                    <StepBadge n={2} />
-                    <div className="step-card__title">{t("landing_step2_title")}</div>
-                  </div>
-                  <div className="step-card__desc">{t("landing_step2_desc")}</div>
-                </div>
-                <div className="step-card">
-                  <div className="step-card__head">
-                    <StepBadge n={3} />
-                    <div className="step-card__title">{t("landing_step3_title")}</div>
-                  </div>
-                  <div className="step-card__desc">{t("landing_step3_desc")}</div>
-                </div>
-              </div>
-
-              <div>
-                <h2 className="section-title">{t("landing_coverage_title")}</h2>
-                <p className="section-sub">{t("landing_coverage_desc")}</p>
-              </div>
-
-              <div className="features__grid">
-                <div className="feature-card">
-                  <div className="feature-card__icon"><SourceIcon /></div>
-                  <div className="feature-card__title">{t("feature1_title")}</div>
-                  <div className="feature-card__desc">{t("feature1_desc")}</div>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-card__icon"><ShieldIcon /></div>
-                  <div className="feature-card__title">{t("feature2_title")}</div>
-                  <div className="feature-card__desc">{t("feature2_desc")}</div>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-card__icon"><GlobeIcon /></div>
-                  <div className="feature-card__title">{t("feature3_title")}</div>
-                  <div className="feature-card__desc">{t("feature3_desc")}</div>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card__header">
-                  <div className="card__title">{t("landing_verify_title")}</div>
-                  <Link className="btn btn--ghost btn--sm" href="/data">
-                    {t("nav_data")} <ArrowIcon />
-                  </Link>
-                </div>
-                <div className="text-muted" style={{ lineHeight: 1.7 }}>
-                  {t("landing_verify_body")}
-                </div>
-              </div>
-            </div>
           </div>
         </section>
       )}

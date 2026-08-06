@@ -1,2 +1,0 @@
-- [Next.js migration patterns](nextjs-migration.md) — original Vite+Express app migrated to Next.js 15 App Router; key adaptation rules for React Router → Next.js routing
-- [Participation API shape](participation-api-shape.md) — the /api/members/[id]/participation route must return a specific nested shape matching the frontend's ParticipationResponse type

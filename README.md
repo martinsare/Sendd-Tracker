@@ -5,11 +5,11 @@ Full-stack civic dashboard MVP that helps users look up their Member of the Sene
 ## Tech
 - React (Vite) frontend
 - Node.js + Express backend API
-- SQLite (local) for caching and persistence
+- PostgreSQL (Supabase) for caching and persistence
 
 ## Architecture (important)
 - The React frontend **only** calls the backend (`/api/...`).
-- The backend fetches from public sources, processes, caches to SQLite, and serves a clean API.
+- The backend fetches from public sources, processes, caches to Supabase Postgres, and serves a clean API.
 - The frontend does not call external APIs for translation; Welsh UI labels are manual, and political text is displayed only as provided by official sources.
 
 ## Architecture diagram (high level)
@@ -21,7 +21,7 @@ User browser
 React UI (frontend)  ----->  Senedd Tracker API (backend)  ----->  Public sources
   |                               |                                  |
   |                               v                                  |
-  |                           SQLite cache/db                         |
+  |                         Supabase Postgres                          |
   |                               |                                  |
   +-------------------------------+----------------------------------+
         UI only calls backend              Backend fetches + caches
@@ -40,8 +40,8 @@ React UI (frontend)  ----->  Senedd Tracker API (backend)  ----->  Public source
 See `DEPLOY.md`.
 
 ## Project structure
-- `backend/` Express API + SQLite cache + extractors
-- `frontend/` React (Vite) UI (bilingual-ready)
+- `app/` Next.js App Router UI and API routes
+- `components/`, `contexts/`, `lib/` shared UI and server logic
 
 ## Backend API (MVP)
 - `GET /api/health`
@@ -49,7 +49,7 @@ See `DEPLOY.md`.
   - Postcode: uses MapIt to identify the Senedd constituency and region for the postcode
   - Then matches those areas to elected Members of the Senedd (MSs) using Senedd Business election results
   - Name/area search: searches the MS directory by member name, constituency, or region
-- `GET /api/members/:id` (reads from SQLite member cache populated by searches)
+- `GET /api/members/:id` (reads from the database member cache populated by searches)
 - `GET /api/members/:id/photo` (proxies the official Senedd Business photo where available)
 - `GET /api/members/:id/participation`
   - Returns extracted plenary contributions (including headings such as questions/motions where clearly indicated) and plenary votes where available
@@ -58,8 +58,8 @@ See `DEPLOY.md`.
 - `GET /api/record/plenary/exports?limit=...` (links to official transcript/vote exports)
 - `GET /api/data-availability` (transparency model used by the UI)
 
-## SQLite schema
-See `backend/schema.sql` (applied automatically on backend startup in `backend/src/db.ts`).
+## Database schema
+See `supabase/migrations/0001_initial_schema.sql` for the initial Supabase migration.
 
 ## Public sources used (via backend only)
 - MapIt (mySociety): postcode -> Senedd constituency/region lookup.
@@ -85,7 +85,7 @@ Senedd Tracker extracts **spoken contributions** (recorded participation) from o
   - Download the official transcript XML (bilingual where available)
   - Extract contribution rows including `Member_name_English` and the official `contribution_verbatim`/`contribution_translated` text
   - Match speaker -> member using conservative name normalisation and a confidence label (`high|medium|low`)
-  - Store extracted snippets in SQLite (`spoken_contributions`)
+  - Store extracted snippets in the database (`spoken_contributions`)
 - Output: the member dashboard shows a timeline of real spoken contribution snippets with source links and confidence labels.
 
 ### Limitations (made explicit in the UI)
@@ -112,7 +112,7 @@ This milestone uses a verified **official** source (Senedd Record of Proceedings
 
 ## Live / continuous updates (dev/demo)
 The MVP is designed to keep working beyond the dissertation with a simple refresh loop:
-- The backend caches upstream downloads in SQLite (`http_cache`) using `CACHE_TTL_SECONDS`.
+- The backend caches upstream downloads in the database (`http_cache`) using `CACHE_TTL_SECONDS`.
 - The refresh endpoint re-indexes recent plenary transcript exports and inserts any **new** contributions:
   - `POST /api/refresh` with optional JSON body `{ "maxMeetings": 8, "force": false }`
   - Indexing is idempotent: contributions are stored with a uniqueness constraint and inserted with `INSERT OR IGNORE` (history is preserved; no duplicate rows).
@@ -123,10 +123,10 @@ The MVP is designed to keep working beyond the dissertation with a simple refres
 - Refreshing does not overwrite or delete old contribution rows, allowing future extensions like new time periods or assemblies without losing earlier data.
 
 ## Environment variables
-Create `backend/.env` if you want overrides (optional). You can start from `backend/.env.example`.
+Set `DATABASE_URL` to your Supabase Postgres connection string.
 ```
 PORT=5174
-DB_PATH=./data/senedd-tracker.sqlite
+DATABASE_URL=postgresql://...
 CACHE_TTL_SECONDS=86400
 ```
 

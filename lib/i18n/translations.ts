@@ -17,15 +17,6 @@ export const enStrings: Record<string, string> = {
   results_title: "Matches",
   results_empty: "No matches found. Try a different spelling or use a postcode.",
   view_dashboard: "View dashboard",
-  feature1_title: "Official Records",
-  feature1_desc:
-    "All participation data is extracted directly from official Senedd Record of Proceedings exports — no assumptions, no guesswork.",
-  feature2_title: "Transparent Data",
-  feature2_desc:
-    "Every data point is clearly labelled as verified, partial, or unavailable. We never imply more than we can confirm.",
-  feature3_title: "Bilingual",
-  feature3_desc:
-    "The tracker fully supports both English and Welsh, matching the bilingual nature of the Senedd's official records.",
   landing_steps_title: "How Senedd Tracker works",
   landing_steps_desc: "A simple pipeline designed for clarity, verification, and long-term civic use.",
   landing_step1_title: "Search your area",
@@ -195,15 +186,6 @@ export const cyStrings: Partial<Record<string, string>> = {
   member_party: "Plaid",
   member_area: "Etholaeth / Rhanbarth",
   view_dashboard: "Gweld dangosfwrdd",
-  feature1_title: "Cofnodion swyddogol",
-  feature1_desc:
-    "Mae'r data cyfranogiad yn cael ei dynnu'n uniongyrchol o allforion swyddogol Cofnod y Trafodion — dim tybiaethau, dim dyfalu.",
-  feature2_title: "Data tryloyw",
-  feature2_desc:
-    "Mae pob pwynt data wedi'i labelu'n glir fel wedi'i wirio, yn rhannol, neu heb fod ar gael. Nid ydym byth yn awgrymu mwy nag y gallwn ei gadarnhau.",
-  feature3_title: "Dwyieithog",
-  feature3_desc:
-    "Mae'r traciwr yn cefnogi Saesneg a Chymraeg, gan adlewyrchu natur ddwyieithog cofnodion swyddogol y Senedd.",
   landing_steps_title: "Sut mae Senedd Tracker yn gweithio",
   landing_steps_desc: "Piblinell syml wedi'i chynllunio ar gyfer eglurder, dilysu, a defnydd dinesig hirdymor.",
   landing_step1_title: "Chwiliwch eich ardal",
