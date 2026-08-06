@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www.theyworkforyou.com" },
     ],
   },
+  allowedDevOrigins: ["*"],
 };
 
 export default nextConfig;
