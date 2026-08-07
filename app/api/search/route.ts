@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { lookupSeneddAreasByPostcode } from "@/lib/sources/mapit";
+import { fetchMS } from "@/lib/sources/twfy";
 import {
   ensureMemberDirectorySeeded,
-  findMembersForConstituency,
+  upsertDirectoryMembers,
   searchMembersByAreaOrName,
 } from "@/lib/services/memberDirectory";
 
@@ -26,29 +26,38 @@ export async function GET(req: NextRequest) {
   const q = parsed.data.q.trim();
 
   try {
-    await ensureMemberDirectorySeeded();
+    try {
+      await ensureMemberDirectorySeeded();
+    } catch {
+      // Search can still work from already-cached members if TWFY is unavailable.
+    }
 
     if (looksLikeUkPostcode(q)) {
-      const areas = await lookupSeneddAreasByPostcode(q);
-      const constituencyName = areas.constituencyName ?? areas.regionName;
-      const members = constituencyName
-        ? await findMembersForConstituency(constituencyName)
-        : [];
+      const twfyMembers = await fetchMS({ postcode: q });
+      await upsertDirectoryMembers(
+        twfyMembers.map((m) => ({
+          personId: m.person_id,
+          name: m.full_name || m.name,
+          party: m.party,
+          constituency: m.constituency,
+        })),
+      );
+      const members = twfyMembers.map((m) => ({
+        id: `twfy:${m.person_id}`,
+        name: m.full_name || m.name,
+        party: m.party,
+        areaName: m.constituency,
+        areaType: "Constituency" as const,
+        imageUrl: m.image ? `https://www.theyworkforyou.com${m.image}` : undefined,
+      }));
 
       return NextResponse.json({
         kind: "postcode",
         query: q,
-        areas: {
-          constituency: areas.constituencyName ?? null,
-          region: areas.regionName ?? null,
-        },
         members,
-        sourceUrl: areas.mapitUrl,
-        fromCache: areas.fromCache,
-        notes:
-          members.length === 0
-            ? ["No members matched the mapped constituency/region yet. Try searching by member name."]
-            : [],
+        sourceUrl: `https://www.theyworkforyou.com/api/getMS?postcode=${encodeURIComponent(q)}`,
+        fromCache: true,
+        notes: members.length === 0 ? ["No members matched this postcode yet."] : [],
       });
     }
 

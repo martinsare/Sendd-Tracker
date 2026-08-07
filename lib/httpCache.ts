@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { query } from "./db";
+import { supabase } from "./db";
 import { env } from "./env";
 
 type CachedResponse = {
@@ -24,23 +24,17 @@ export async function cachedFetchText(args: {
   const ttlSeconds = args.ttlSeconds ?? env.cacheTtlSeconds;
   const cacheKey = hashKey(`${args.source}:${args.cacheKeyHint ?? args.url}`);
 
-  const { rows } = await query<{
-    status: number;
-    body: string;
-    contenttype: string | null;
-    expiresat: string;
-  }>(
-    `SELECT status, response_body as body, content_type as contenttype, expires_at as expiresat
-     FROM http_cache WHERE cache_key = $1`,
-    [cacheKey]
-  );
+  const { data: row } = await supabase()
+    .from("http_cache")
+    .select("status,response_body,content_type,expires_at")
+    .eq("cache_key", cacheKey)
+    .maybeSingle<any>();
 
-  const row = rows[0];
-  if (row && Number(row.expiresat) > now) {
+  if (row && Number(row.expires_at) > now) {
     return {
       status: row.status,
-      body: row.body,
-      contentType: row.contenttype,
+      body: row.response_body,
+      contentType: row.content_type,
       fromCache: true,
     };
   }
@@ -57,23 +51,20 @@ export async function cachedFetchText(args: {
   const fetchedAt = now;
   const expiresAt = now + ttlSeconds * 1000;
 
-  await query(
-    `INSERT INTO http_cache(cache_key, url, status, response_body, content_type, fetched_at, expires_at, source)
-     VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT(cache_key) DO UPDATE SET
-       url=EXCLUDED.url,
-       status=EXCLUDED.status,
-       response_body=EXCLUDED.response_body,
-       content_type=EXCLUDED.content_type,
-       fetched_at=EXCLUDED.fetched_at,
-       expires_at=EXCLUDED.expires_at,
-       source=EXCLUDED.source`,
-    [cacheKey, args.url, res.status, body, contentType, fetchedAt, expiresAt, args.source]
-  );
+  await (supabase() as any).from("http_cache").upsert({
+    cache_key: cacheKey,
+    url: args.url,
+    status: res.status,
+    response_body: body,
+    content_type: contentType,
+    fetched_at: fetchedAt,
+    expires_at: expiresAt,
+    source: args.source,
+  });
 
   return { status: res.status, body, contentType, fromCache: false };
 }
 
 export async function purgeExpiredCache() {
-  await query(`DELETE FROM http_cache WHERE expires_at <= $1`, [Date.now()]);
+  await (supabase() as any).from("http_cache").delete().lte("expires_at", Date.now());
 }

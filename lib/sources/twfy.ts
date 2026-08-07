@@ -12,6 +12,10 @@ export type TwfyMS = {
   name: string;
   party: string;
   constituency: string;
+  image?: string;
+  full_name?: string;
+  given_name?: string;
+  family_name?: string;
 };
 
 /** Returns all current Members of the Senedd from TheyWorkForYou. */
@@ -27,8 +31,8 @@ export async function fetchAllMSs(): Promise<TwfyMS[]> {
   return data;
 }
 
-/** Returns a single MS by TWFY person_id or constituency postcode. */
-export async function fetchMS(args: { personId?: string; postcode?: string }): Promise<TwfyMS | null> {
+/** Returns one or more MSs by TWFY person_id or constituency postcode. */
+export async function fetchMS(args: { personId?: string; postcode?: string }): Promise<TwfyMS[]> {
   const params = new URLSearchParams({ output: "json", key: env.twfyApiKey });
   if (args.personId) params.set("id", args.personId);
   if (args.postcode) params.set("postcode", args.postcode);
@@ -36,16 +40,16 @@ export async function fetchMS(args: { personId?: string; postcode?: string }): P
   const res = await fetch(url, {
     headers: { "user-agent": "SeneddTrackerMVP/1.0 (+academic project)" },
   });
-  if (!res.ok) return null;
-  const data = await res.json() as TwfyMS | TwfyMS[] | { error: string };
-  if (Array.isArray(data)) return data[0] ?? null;
-  if ("error" in data) return null;
-  return data;
+  if (!res.ok) return [];
+  const data = (await res.json()) as TwfyMS | TwfyMS[] | { error: string };
+  if (Array.isArray(data)) return data;
+  if ("error" in data) return [];
+  return [data];
 }
 
 /** Photo URL for a TheyWorkForYou person. */
 export function twfyPhotoUrl(personId: string): string {
-  return `https://www.theyworkforyou.com/images/mps/${personId}.jpg`;
+  return `https://www.theyworkforyou.com/people-images/mpsL/${personId}.jpeg`;
 }
 
 /** Make a stable member ID from a TWFY person_id. */

@@ -1,4 +1,4 @@
-import { query, transaction } from "../db";
+import { supabase } from "../db";
 import { fetchAllMSs, twfyMemberId, twfyPhotoUrl } from "../sources/twfy";
 
 export type DirectoryMember = {
@@ -11,87 +11,95 @@ export type DirectoryMember = {
   imageUrl?: string;
 };
 
-  /** Ensure the member directory has been seeded from TWFY. */
 export async function ensureMemberDirectorySeeded(): Promise<void> {
   const members = await fetchAllMSs();
-  await upsertDirectoryMembers(members.map((m) => ({
-    personId: m.person_id,
-    name: m.name,
-    party: m.party,
-    constituency: m.constituency,
-  })));
+  await upsertDirectoryMembers(
+    members.map((m) => ({
+      personId: m.person_id,
+      name: m.name,
+      party: m.party,
+      constituency: m.constituency,
+      image: m.image,
+    })),
+  );
 }
 
-/** Upsert members from TWFY data into the members table. */
 export async function upsertDirectoryMembers(
-  members: Array<{ personId: string; name: string; party?: string; constituency: string }>
+  members: Array<{ personId: string; name: string; party?: string; constituency: string; image?: string }>,
 ): Promise<void> {
   const now = Date.now();
-  await transaction(async (client) => {
-    for (const m of members) {
-      const id = twfyMemberId(m.personId);
-      const imageUrl = twfyPhotoUrl(m.personId);
-      await client.query(
-        `INSERT INTO members(id, name, party, area_name, area_type, profile_url, image_url, updated_at, last_updated_at)
-         VALUES($1, $2, $3, $4, 'Constituency', NULL, $5, $6, $7)
-         ON CONFLICT(id) DO UPDATE SET
-           name=EXCLUDED.name,
-           party=COALESCE(EXCLUDED.party, members.party),
-           area_name=COALESCE(EXCLUDED.area_name, members.area_name),
-           image_url=COALESCE(EXCLUDED.image_url, members.image_url),
-           updated_at=EXCLUDED.updated_at,
-           last_updated_at=EXCLUDED.last_updated_at`,
-        [id, m.name, m.party ?? null, m.constituency, imageUrl, now, now]
-      );
-    }
-  });
-}
-
-/** Find all MSs for the given constituency name (case-insensitive). */
-export async function findMembersForConstituency(
-  constituencyName: string
-): Promise<DirectoryMember[]> {
-  const { rows } = await query<DirectoryMember>(
-    `SELECT id, name, party, area_name as "areaName", area_type as "areaType",
-            profile_url as "profileUrl", image_url as "imageUrl"
-     FROM members
-     WHERE LOWER(area_name) = LOWER($1)
-     ORDER BY name ASC`,
-    [constituencyName]
+  await (supabase() as any).from("members").upsert(
+    members.map((m) => ({
+      id: twfyMemberId(m.personId),
+      name: m.name,
+      party: m.party ?? null,
+      area_name: m.constituency,
+      area_type: "Constituency",
+      profile_url: null,
+      image_url: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.personId),
+      updated_at: now,
+      last_updated_at: now,
+    })),
+    { onConflict: "id" },
   );
-  return rows.map(withPhotoProxyUrl);
 }
 
-/** Search members by name or area name. */
+export async function findMembersForConstituency(constituencyName: string): Promise<DirectoryMember[]> {
+  const { data } = await supabase()
+    .from("members")
+    .select("id,name,party,area_name,area_type,profile_url,image_url")
+    .ilike("area_name", constituencyName)
+    .order("name", { ascending: true });
+  return (data ?? []).map(mapRow);
+}
+
 export async function searchMembersByAreaOrName(queryStr: string): Promise<DirectoryMember[]> {
   const q = queryStr.trim();
   if (!q) return [];
 
-  // Exact area name match first
-  const { rows: exactArea } = await query<DirectoryMember>(
-    `SELECT id, name, party, area_name as "areaName", area_type as "areaType",
-            profile_url as "profileUrl", image_url as "imageUrl"
-     FROM members
-     WHERE LOWER(area_name) = LOWER($1)
-     ORDER BY name ASC`,
-    [q]
-  );
-  if (exactArea.length) return exactArea.map(withPhotoProxyUrl);
+  const live = await fetchAllMSs();
+  const liveMatches = live
+    .filter((m) => {
+      const name = `${m.full_name || m.name} ${m.constituency} ${m.party}`.toLowerCase();
+      return name.includes(q.toLowerCase());
+    })
+    .map((m) => ({
+      id: twfyMemberId(m.person_id),
+      name: m.full_name || m.name,
+      party: m.party ?? undefined,
+      areaName: m.constituency,
+      areaType: "Constituency" as const,
+      profileUrl: undefined,
+      imageUrl: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.person_id),
+    }));
+  if (liveMatches.length) return liveMatches;
 
-  // Fallback: name contains query
-  const { rows } = await query<DirectoryMember>(
-    `SELECT id, name, party, area_name as "areaName", area_type as "areaType",
-            profile_url as "profileUrl", image_url as "imageUrl"
-     FROM members
-     WHERE LOWER(name) LIKE LOWER($1)
-     ORDER BY name ASC
-     LIMIT 20`,
-    [`%${q}%`]
-  );
-  return rows.map(withPhotoProxyUrl);
+  const { data: exactArea } = await supabase()
+    .from("members")
+    .select("id,name,party,area_name,area_type,profile_url,image_url")
+    .ilike("area_name", q)
+    .order("name", { ascending: true });
+  if (exactArea?.length) return exactArea.map(mapRow);
+
+  const { data } = await supabase()
+    .from("members")
+    .select("id,name,party,area_name,area_type,profile_url,image_url")
+    .ilike("name", `%${q}%`)
+    .order("name", { ascending: true })
+    .limit(20);
+  const cached = (data ?? []).map(mapRow);
+  if (cached.length) return cached;
+  return [];
 }
 
-function withPhotoProxyUrl(m: DirectoryMember): DirectoryMember {
-  if (!m.imageUrl) return m;
-  return { ...m, imageUrl: `/api/members/${encodeURIComponent(m.id)}/photo` };
+function mapRow(m: any): DirectoryMember {
+  return {
+    id: m.id,
+    name: m.name,
+    party: m.party ?? undefined,
+    areaName: m.area_name,
+    areaType: m.area_type,
+    profileUrl: m.profile_url ?? undefined,
+    imageUrl: m.image_url ?? undefined,
+  };
 }

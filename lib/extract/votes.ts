@@ -1,8 +1,9 @@
 import { parseStringPromise } from "xml2js";
-import { query, transaction } from "../db";
+import { supabase } from "../db";
 import { cachedFetchText } from "../httpCache";
 import { env } from "../env";
 import { listRecentPlenaryExports } from "../sources/record";
+import { fetchAllMSs } from "../sources/twfy";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -27,10 +28,7 @@ export async function indexRecentPlenaryVotes(args: {
     .filter((u): u is string => !!u)
     .slice(0, args.maxMeetings);
 
-  const { rows: memberRows } = await query<{ id: string; name: string; senedduid: number | null }>(
-    `SELECT id, name, senedd_uid as senedduid FROM members ORDER BY updated_at DESC`
-  );
-  const members = memberRows.map((r) => ({ id: r.id, name: r.name, seneddUid: r.senedduid }));
+  const members = await loadMembers();
 
   const meetings: IndexedVotesMeetingResult[] = [];
 
@@ -41,18 +39,15 @@ export async function indexRecentPlenaryVotes(args: {
       continue;
     }
 
-    const { rows: existingRows } = await query<{ parsedat: string | null; parseversion: number }>(
-      `SELECT parsed_at as parsedat, parse_version as parseversion FROM plenary_votes WHERE meeting_id = $1`, [meetingId]
-    );
-    const already = existingRows[0];
+    const [{ data: existingRows }, { count: countRows }] = await Promise.all([
+      supabase().from("plenary_votes").select("parsed_at,parse_version").eq("meeting_id", meetingId).limit(1),
+      supabase().from("member_votes").select("meeting_id", { count: "exact", head: true }).eq("meeting_id", meetingId),
+    ]);
+    const already = existingRows?.[0] as { parsed_at?: string | null; parse_version?: number | null } | undefined;
+    const hasAny = Number(countRows ?? 0) > 0;
 
-    const { rows: countRows } = await query<{ c: string }>(
-      `SELECT COUNT(1) as c FROM member_votes WHERE meeting_id = $1`, [meetingId]
-    );
-    const hasAny = Number(countRows[0]?.c ?? 0) > 0;
-
-    let shouldParse = args.force === true || !already || !already.parsedat || already.parseversion !== PARSE_VERSION || !hasAny;
-    if (!shouldParse && already?.parsedat) shouldParse = isStale(Number(already.parsedat));
+    let shouldParse = args.force === true || !already || !already.parsed_at || already.parse_version !== PARSE_VERSION || !hasAny;
+    if (!shouldParse && already?.parsed_at) shouldParse = isStale(Number(already.parsed_at));
     if (!shouldParse) {
       meetings.push({ meetingId, votesUrl, parsed: false, rowsUpserted: 0 });
       continue;
@@ -82,58 +77,67 @@ async function parseAndStoreVotesMeeting(args: {
   const rows = extractVoteRows(parsed);
   const now = Date.now();
 
-  return transaction(async (client) => {
-    await client.query(
-      `INSERT INTO plenary_votes(meeting_id, meeting_date, votes_url, fetched_at, parsed_at, parse_version, last_updated_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT(meeting_id) DO UPDATE SET
-         meeting_date=EXCLUDED.meeting_date, votes_url=EXCLUDED.votes_url,
-         fetched_at=EXCLUDED.fetched_at, parsed_at=EXCLUDED.parsed_at,
-         parse_version=EXCLUDED.parse_version, last_updated_at=EXCLUDED.last_updated_at`,
-      [args.meetingId, rows.meetingDate ?? null, args.votesUrl, now, now, PARSE_VERSION, now]
-    );
-
-    let upserted = 0;
-
-    for (const r of rows.items) {
-      const memberMatch = resolveMemberForVote(args.members, r);
-      if (!memberMatch) continue;
-
-      const result = await client.query(
-        `INSERT INTO member_votes(
-           meeting_id, contribution_id, vote_row_id, member_id, member_uid, member_name, occurred_at,
-           vote_name_en, vote_name_cy, vote_result_en, vote_result_cy,
-           totals_for, totals_against, totals_abstain,
-           member_result, source_url, confidence, extracted_at, last_updated_at
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-         ON CONFLICT(meeting_id, contribution_id, member_id) DO UPDATE SET
-           member_uid=COALESCE(member_votes.member_uid, EXCLUDED.member_uid),
-           occurred_at=EXCLUDED.occurred_at,
-           vote_name_en=COALESCE(member_votes.vote_name_en, EXCLUDED.vote_name_en),
-           vote_name_cy=COALESCE(member_votes.vote_name_cy, EXCLUDED.vote_name_cy),
-           vote_result_en=COALESCE(member_votes.vote_result_en, EXCLUDED.vote_result_en),
-           vote_result_cy=COALESCE(member_votes.vote_result_cy, EXCLUDED.vote_result_cy),
-           totals_for=COALESCE(member_votes.totals_for, EXCLUDED.totals_for),
-           totals_against=COALESCE(member_votes.totals_against, EXCLUDED.totals_against),
-           totals_abstain=COALESCE(member_votes.totals_abstain, EXCLUDED.totals_abstain),
-           member_result=EXCLUDED.member_result, last_updated_at=EXCLUDED.last_updated_at`,
-        [
-          args.meetingId, r.contributionId ?? 0, r.voteRowId ?? null,
-          memberMatch.memberId, r.memberUid ?? null, r.memberName ?? null,
-          rows.meetingDate ?? new Date().toISOString(),
-          r.voteNameEn ?? null, r.voteNameCy ?? null,
-          r.voteResultEn ?? null, r.voteResultCy ?? null,
-          r.totalsFor ?? null, r.totalsAgainst ?? null, r.totalsAbstain ?? null,
-          r.memberResult ?? "Unknown",
-          `https://record.senedd.wales/Plenary/${args.meetingId}`,
-          memberMatch.confidence, now, now,
-        ]
-      );
-      upserted += result.rowCount ?? 0;
-    }
-
-    return upserted;
+  const db = supabase() as any;
+  await db.from("plenary_votes").upsert({
+    meeting_id: args.meetingId,
+    meeting_date: rows.meetingDate ?? null,
+    votes_url: args.votesUrl,
+    fetched_at: now,
+    parsed_at: now,
+    parse_version: PARSE_VERSION,
+    last_updated_at: now,
   });
+
+  let upserted = 0;
+
+  for (const r of rows.items) {
+    const memberMatch = resolveMemberForVote(args.members, r);
+    if (!memberMatch) continue;
+
+    const { error } = await db.from("member_votes").upsert(
+      {
+        meeting_id: args.meetingId,
+        contribution_id: r.contributionId ?? 0,
+        vote_row_id: r.voteRowId ?? null,
+        member_id: memberMatch.memberId,
+        member_uid: r.memberUid ?? null,
+        member_name: r.memberName ?? null,
+        occurred_at: rows.meetingDate ?? new Date().toISOString(),
+        vote_name_en: r.voteNameEn ?? null,
+        vote_name_cy: r.voteNameCy ?? null,
+        vote_result_en: r.voteResultEn ?? null,
+        vote_result_cy: r.voteResultCy ?? null,
+        totals_for: r.totalsFor ?? null,
+        totals_against: r.totalsAgainst ?? null,
+        totals_abstain: r.totalsAbstain ?? null,
+        member_result: r.memberResult ?? "Unknown",
+        source_url: `https://record.senedd.wales/Plenary/${args.meetingId}`,
+        confidence: memberMatch.confidence,
+        extracted_at: now,
+        last_updated_at: now,
+      },
+      { onConflict: "meeting_id,contribution_id,member_id" }
+    );
+    if (!error) upserted++;
+  }
+
+  return upserted;
+}
+
+async function loadMembers(): Promise<Array<{ id: string; name: string; seneddUid: number | null }>> {
+  const { data } = await supabase()
+    .from("members")
+    .select("id,name,senedd_uid")
+    .order("updated_at", { ascending: false });
+  const cached = ((data ?? []) as any[]).map((r) => ({ id: r.id, name: r.name, seneddUid: r.senedd_uid ?? null }));
+  if (cached.length) return cached;
+
+  const live = await fetchAllMSs();
+  return live.map((m) => ({
+    id: `twfy:${m.person_id}`,
+    name: m.full_name || m.name,
+    seneddUid: Number(m.member_id) || null,
+  }));
 }
 
 // ─── XML parsing ─────────────────────────────────────────────────────────────

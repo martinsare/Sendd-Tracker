@@ -222,11 +222,11 @@ export default function MemberPage() {
   const uniqueTimestamps = new Set(realContributions.map((i) => i.occurredAt)).size;
   const showTimestampNote = realContributions.length >= 2 && uniqueTimestamps === 1;
 
-  const memberName = memberDetail?.name ?? member?.name ?? null;
-  const memberParty = memberDetail?.party ?? member?.party ?? null;
-  const memberAreaName = memberDetail?.areaName ?? member?.areaName ?? null;
-  const memberProfileUrl = memberDetail?.profileUrl ?? member?.profileUrl ?? null;
-  const memberImageUrl = memberDetail?.imageUrl ?? member?.imageUrl ?? null;
+  const memberName = member?.name ?? memberDetail?.name ?? null;
+  const memberParty = member?.party ?? memberDetail?.party ?? null;
+  const memberAreaName = member?.areaName ?? memberDetail?.areaName ?? null;
+  const memberProfileUrl = member?.profileUrl ?? memberDetail?.profileUrl ?? null;
+  const memberImageUrl = member?.imageUrl ?? memberDetail?.imageUrl ?? null;
 
   const openSpeechReader = async (it: api.ParticipationItem) => {
     if (!id) return;

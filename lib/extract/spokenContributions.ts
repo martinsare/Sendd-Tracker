@@ -1,10 +1,11 @@
 import { parseStringPromise } from "xml2js";
 import he from "he";
 import * as cheerio from "cheerio";
-import { query, transaction } from "../db";
+import { supabase } from "../db";
 import { cachedFetchText } from "../httpCache";
 import { env } from "../env";
 import { listRecentPlenaryExports } from "../sources/record";
+import { fetchAllMSs } from "../sources/twfy";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -30,10 +31,7 @@ export async function indexRecentPlenarySpokenContributions(args: {
     .filter((u): u is string => !!u)
     .slice(0, args.maxMeetings);
 
-  const { rows: memberRows } = await query<{ id: string; name: string; senedduid: number | null }>(
-    `SELECT id, name, senedd_uid as senedduid FROM members ORDER BY updated_at DESC`
-  );
-  const members = memberRows.map((r) => ({ id: r.id, name: r.name, seneddUid: r.senedduid }));
+  const members = await loadMembers();
 
   const meetings: IndexedMeetingResult[] = [];
 
@@ -44,32 +42,36 @@ export async function indexRecentPlenarySpokenContributions(args: {
       continue;
     }
 
-    const { rows: existingRows } = await query<{ meetingid: number; parsedat: string | null; parseversion: number }>(
-      `SELECT meeting_id as meetingid, parsed_at as parsedat, parse_version as parseversion FROM plenary_transcripts WHERE meeting_id = $1`,
-      [meetingId]
-    );
-    const already = existingRows[0];
-
-    const { rows: countRows } = await query<{ c: string }>(
-      `SELECT COUNT(1) as c FROM spoken_contributions WHERE meeting_id = $1`, [meetingId]
-    );
-    const hasAny = Number(countRows[0]?.c ?? 0) > 0;
-
-    const { rows: missingRows } = await query<{ c: string }>(
-      `SELECT COUNT(1) as c FROM spoken_contributions WHERE meeting_id = $1 AND (full_text_en IS NULL OR full_text_en = '') AND (full_text_cy IS NULL OR full_text_cy = '')`,
-      [meetingId]
-    );
-    const hasMissingFullText = Number(missingRows[0]?.c ?? 0) > 0;
+    const [{ data: existingRows }, { data: countRows }, { data: missingRows }] = await Promise.all([
+      supabase()
+        .from("plenary_transcripts")
+        .select("meeting_id,parsed_at,parse_version")
+        .eq("meeting_id", meetingId)
+        .limit(1),
+      supabase()
+        .from("spoken_contributions")
+        .select("meeting_id", { count: "exact", head: true })
+        .eq("meeting_id", meetingId),
+      supabase()
+        .from("spoken_contributions")
+        .select("meeting_id", { count: "exact", head: true })
+        .eq("meeting_id", meetingId)
+        .is("full_text_en", null)
+        .is("full_text_cy", null),
+    ]);
+    const already = existingRows?.[0] as { parsed_at?: string | null; parse_version?: number | null } | undefined;
+    const hasAny = Number(countRows ?? 0) > 0;
+    const hasMissingFullText = Number(missingRows ?? 0) > 0;
 
     let shouldParse =
       args.force === true ||
       !already ||
-      !already.parsedat ||
-      already.parseversion !== PARSE_VERSION ||
+      !already.parsed_at ||
+      already.parse_version !== PARSE_VERSION ||
       !hasAny ||
       hasMissingFullText;
 
-    if (!shouldParse && already?.parsedat) shouldParse = isStale(Number(already.parsedat));
+    if (!shouldParse && already?.parsed_at) shouldParse = isStale(Number(already.parsed_at));
     if (!shouldParse) {
       meetings.push({ meetingId, transcriptUrl, parsed: false, contributionsInserted: 0 });
       continue;
@@ -97,24 +99,26 @@ export async function backfillPlenaryMeetingSpokenContributions(args: {
 }): Promise<{ ok: boolean; contributionsUpserted: number; transcriptUrl: string }> {
   let transcriptUrl = args.transcriptUrl;
   if (!transcriptUrl) {
-    const { rows } = await query<{ transcripturl: string }>(
-      `SELECT transcript_url as transcripturl FROM plenary_transcripts WHERE meeting_id = $1`, [args.meetingId]
-    );
-    transcriptUrl = rows[0]?.transcripturl ?? `https://record.senedd.wales/XMLExport/Download?meetingID=${args.meetingId}&xmlDownloadType=BilingualTranscript`;
+    const { data } = await supabase()
+      .from("plenary_transcripts")
+      .select("transcript_url")
+      .eq("meeting_id", args.meetingId)
+      .maybeSingle();
+    transcriptUrl =
+      (data as any)?.transcript_url ??
+      `https://record.senedd.wales/XMLExport/Download?meetingID=${args.meetingId}&xmlDownloadType=BilingualTranscript`;
   }
 
-  const { rows: memberRows } = await query<{ id: string; name: string }>(
-    `SELECT id, name FROM members ORDER BY updated_at DESC`
-  );
+    const memberRows = await loadMembers();
 
   const upserted = await parseAndStoreMeeting({
-    transcriptUrl,
+    transcriptUrl: transcriptUrl as string,
     meetingId: args.meetingId,
     members: memberRows,
     maxContributions: args.maxContributionsPerMeeting ?? 1500,
   });
 
-  return { ok: true, contributionsUpserted: upserted, transcriptUrl };
+  return { ok: true, contributionsUpserted: upserted, transcriptUrl: transcriptUrl as string };
 }
 
 async function parseAndStoreMeeting(args: {
@@ -132,75 +136,83 @@ async function parseAndStoreMeeting(args: {
   const rows = extractRows(parsed);
   const now = Date.now();
 
-  return transaction(async (client) => {
-    await client.query(
-      `INSERT INTO plenary_transcripts(meeting_id, meeting_date, transcript_url, fetched_at, parsed_at, parse_version, last_updated_at)
-       VALUES($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT(meeting_id) DO UPDATE SET
-         meeting_date=EXCLUDED.meeting_date, transcript_url=EXCLUDED.transcript_url,
-         fetched_at=EXCLUDED.fetched_at, parsed_at=EXCLUDED.parsed_at,
-         parse_version=EXCLUDED.parse_version, last_updated_at=EXCLUDED.last_updated_at`,
-      [args.meetingId, rows.meetingDate ?? null, args.transcriptUrl, now, now, PARSE_VERSION, now]
-    );
+  const db = supabase() as any;
+  await db.from("plenary_transcripts").upsert({
+    meeting_id: args.meetingId,
+    meeting_date: rows.meetingDate ?? null,
+    transcript_url: args.transcriptUrl,
+    fetched_at: now,
+    parsed_at: now,
+    parse_version: PARSE_VERSION,
+    last_updated_at: now,
+  });
 
-    let inserted = 0;
-    let processed = 0;
+  let inserted = 0;
+  let processed = 0;
 
-    for (const r of rows.items) {
-      processed++;
-      if (processed > args.maxContributions) break;
-      if (!r.speakerName) continue;
-      const speaker = r.speakerName.trim();
-      if (!speaker) continue;
+  for (const r of rows.items) {
+    processed++;
+    if (processed > args.maxContributions) break;
+    if (!r.speakerName) continue;
+    const speaker = r.speakerName.trim();
+    if (!speaker) continue;
 
-      const content = extractTextContent({
-        verbatimHtml: r.verbatimHtml,
-        translatedHtml: r.translatedHtml,
-        contributionLanguage: r.contributionLanguage,
-      });
-      if (!content.fullTextCy && !content.fullTextEn) continue;
+    const content = extractTextContent({
+      verbatimHtml: r.verbatimHtml,
+      translatedHtml: r.translatedHtml,
+      contributionLanguage: r.contributionLanguage,
+    });
+    if (!content.fullTextCy && !content.fullTextEn) continue;
 
-      const match = pickBestMemberMatch(args.members, speaker);
-      if (!match) continue;
+    const match = pickBestMemberMatch(args.members, speaker);
+    if (!match) continue;
 
-      // Backfill Senedd UID from transcript data
-      if (r.memberUid) {
-        await client.query(
-          `UPDATE members SET senedd_uid=COALESCE(senedd_uid, $1), last_updated_at=$2 WHERE id=$3`,
-          [r.memberUid, now, match.memberId]
-        );
-      }
-
-      const sourceUrl = `https://record.senedd.wales/Plenary/${args.meetingId}`;
-      const result = await client.query(
-        `INSERT INTO spoken_contributions(
-           meeting_id, contribution_id, member_id, speaker_name, occurred_at, context_en, context_cy,
-           snippet_en, snippet_cy, full_text_en, full_text_cy, source_url, confidence, extracted_at, last_updated_at
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-         ON CONFLICT(meeting_id, contribution_id, member_id) DO UPDATE SET
-           speaker_name=EXCLUDED.speaker_name, occurred_at=EXCLUDED.occurred_at,
-           context_en=COALESCE(spoken_contributions.context_en, EXCLUDED.context_en),
-           context_cy=COALESCE(spoken_contributions.context_cy, EXCLUDED.context_cy),
-           snippet_en=CASE WHEN spoken_contributions.snippet_en IS NULL OR spoken_contributions.snippet_en='' THEN EXCLUDED.snippet_en ELSE spoken_contributions.snippet_en END,
-           snippet_cy=COALESCE(spoken_contributions.snippet_cy, EXCLUDED.snippet_cy),
-           full_text_en=COALESCE(spoken_contributions.full_text_en, EXCLUDED.full_text_en),
-           full_text_cy=COALESCE(spoken_contributions.full_text_cy, EXCLUDED.full_text_cy),
-           source_url=EXCLUDED.source_url, confidence=EXCLUDED.confidence, last_updated_at=EXCLUDED.last_updated_at`,
-        [
-          args.meetingId, r.contributionId ?? processed, match.memberId, r.speakerName,
-          rows.meetingDate ?? new Date().toISOString(),
-          r.contextEn ?? null, r.contextCy ?? null,
-          content.snippetEn ?? content.snippetCy ?? "",
-          content.snippetCy ?? null,
-          content.fullTextEn ?? null, content.fullTextCy ?? null,
-          sourceUrl, match.confidence, now, now,
-        ]
-      );
-      inserted += result.rowCount ?? 0;
+    if (r.memberUid) {
+      await db.from("members").update({ senedd_uid: r.memberUid, last_updated_at: now }).eq("id", match.memberId);
     }
 
-    return inserted;
-  });
+    const sourceUrl = `https://record.senedd.wales/Plenary/${args.meetingId}`;
+    const upsertRow = {
+      meeting_id: args.meetingId,
+      contribution_id: r.contributionId ?? processed,
+      member_id: match.memberId,
+      speaker_name: r.speakerName ?? speaker,
+      occurred_at: String(rows.meetingDate ?? new Date().toISOString()),
+      context_en: r.contextEn ?? null,
+      context_cy: r.contextCy ?? null,
+      snippet_en: content.snippetEn ?? content.snippetCy ?? "",
+      snippet_cy: content.snippetCy ?? null,
+      full_text_en: content.fullTextEn ?? null,
+      full_text_cy: content.fullTextCy ?? null,
+      source_url: sourceUrl,
+      confidence: match.confidence,
+      extracted_at: now,
+      last_updated_at: now,
+    };
+
+    const { error } = await db.from("spoken_contributions").upsert(upsertRow, {
+      onConflict: "meeting_id,contribution_id,member_id",
+    });
+    if (!error) inserted++;
+  }
+
+  return inserted;
+}
+
+async function loadMembers(): Promise<Array<{ id: string; name: string; seneddUid: number | null }>> {
+  const { data } = await supabase()
+    .from("members")
+    .select("id,name,senedd_uid")
+    .order("updated_at", { ascending: false });
+  const cached = ((data ?? []) as any[]).map((r) => ({ id: r.id, name: r.name, seneddUid: r.senedd_uid ?? null }));
+  if (cached.length) return cached;
+
+  const live = await fetchAllMSs();
+  return live.map((m) => ({
+    id: `twfy:${m.person_id}`,
+    name: m.full_name || m.name,
+    seneddUid: Number(m.member_id) || null,
+  }));
 }
 
 // ─── XML parsing helpers ─────────────────────────────────────────────────────

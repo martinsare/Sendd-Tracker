@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { supabase } from "@/lib/db";
 import {
   classifyTopicsFromText,
   primaryTopicFromText,
@@ -25,43 +25,30 @@ function normalizeVoteMemberResult(input: string): "for" | "against" | "abstain"
 }
 
 async function loadSpokenContributions(memberId: string) {
-  const { rows } = await query<{
-    meetingid: number;
-    contributionid: number;
-    occurredat: string;
-    contexten: string | null;
-    contextcy: string | null;
-    snippeten: string;
-    snippetcy: string | null;
-    sourceurl: string;
-    confidence: "high" | "medium" | "low";
-  }>(
-    `SELECT meeting_id as meetingid, contribution_id as contributionid,
-            occurred_at as occurredat, context_en as contexten, context_cy as contextcy,
-            snippet_en as snippeten, snippet_cy as snippetcy,
-            source_url as sourceurl, confidence
-     FROM spoken_contributions
-     WHERE member_id = $1
-     ORDER BY occurred_at DESC, meeting_id DESC, contribution_id DESC
-     LIMIT 50`,
-    [memberId]
-  );
+  const { data } = await supabase()
+    .from("spoken_contributions")
+    .select(
+      "meeting_id,contribution_id,occurred_at,context_en,context_cy,snippet_en,snippet_cy,source_url,confidence",
+    )
+    .eq("member_id", memberId)
+    .order("occurred_at", { ascending: false })
+    .limit(50);
 
-  return rows.map((r) => {
-    const title = (r.contexten ?? r.contextcy ?? "Plenary contribution").trim();
-    const contextEn = r.contexten ?? undefined;
-    const contextCy = r.contextcy ?? undefined;
-    const snippetEn = r.snippeten;
-    const snippetCy = r.snippetcy ?? undefined;
+  return (data ?? []).map((r: any) => {
+    const title = (r.context_en ?? r.context_cy ?? "Plenary contribution").trim();
+    const contextEn = r.context_en ?? undefined;
+    const contextCy = r.context_cy ?? undefined;
+    const snippetEn = r.snippet_en;
+    const snippetCy = r.snippet_cy ?? undefined;
     const topicText = [title, contextEn, contextCy, snippetEn, snippetCy].filter(Boolean).join(" ");
     const topics = classifyTopicsFromText(topicText);
     const primaryTopic = primaryTopicFromText(topicText);
     const kind = inferSpeechKind(title, contextEn);
 
     return {
-      id: `spoken:${r.meetingid}:${r.contributionid}`,
+      id: `spoken:${r.meeting_id}:${r.contribution_id}`,
       kind,
-      occurredAt: r.occurredat,
+      occurredAt: r.occurred_at,
       title,
       contextEn,
       contextCy,
@@ -69,50 +56,31 @@ async function loadSpokenContributions(memberId: string) {
       snippetCy,
       topics,
       primaryTopic,
-      sourceUrl: r.sourceurl,
+      sourceUrl: r.source_url,
       confidence: r.confidence,
     };
   });
 }
 
 async function loadMemberVotes(memberId: string) {
-  const { rows } = await query<{
-    meetingid: number;
-    contributionid: number;
-    occurredat: string;
-    votenameen: string | null;
-    votenamecw: string | null;
-    voteresulten: string | null;
-    voteresultcy: string | null;
-    totalsfor: number | null;
-    totalsagainst: number | null;
-    totalsabstain: number | null;
-    memberresult: string;
-    sourceurl: string;
-    confidence: "high" | "medium" | "low";
-  }>(
-    `SELECT meeting_id as meetingid, contribution_id as contributionid,
-            occurred_at as occurredat,
-            vote_name_en as votenameen, vote_name_cy as votenamecw,
-            vote_result_en as voteresulten, vote_result_cy as voteresultcy,
-            totals_for as totalsfor, totals_against as totalsagainst, totals_abstain as totalsabstain,
-            member_result as memberresult, source_url as sourceurl, confidence
-     FROM member_votes
-     WHERE member_id = $1
-     ORDER BY occurred_at DESC, meeting_id DESC, contribution_id DESC
-     LIMIT 50`,
-    [memberId]
-  );
+  const { data } = await supabase()
+    .from("member_votes")
+    .select(
+      "meeting_id,contribution_id,occurred_at,vote_name_en,vote_name_cy,vote_result_en,vote_result_cy,totals_for,totals_against,totals_abstain,member_result,source_url,confidence",
+    )
+    .eq("member_id", memberId)
+    .order("occurred_at", { ascending: false })
+    .limit(50);
 
-  return rows.map((r) => {
+  return (data ?? []).map((r: any) => {
     const totals =
-      r.totalsfor != null && r.totalsagainst != null && r.totalsabstain != null
-        ? `Totals: For ${r.totalsfor}, Against ${r.totalsagainst}, Abstain ${r.totalsabstain}.`
+      r.totals_for != null && r.totals_against != null && r.totals_abstain != null
+        ? `Totals: For ${r.totals_for}, Against ${r.totals_against}, Abstain ${r.totals_abstain}.`
         : "";
 
     const snippetEn = [
-      `Member result: ${r.memberresult || "Unknown"}.`,
-      r.voteresulten ? `Overall: ${r.voteresulten}.` : "",
+      `Member result: ${r.member_result || "Unknown"}.`,
+      r.vote_result_en ? `Overall: ${r.vote_result_en}.` : "",
       totals,
     ]
       .filter(Boolean)
@@ -120,8 +88,8 @@ async function loadMemberVotes(memberId: string) {
       .trim();
 
     const snippetCy = [
-      `Canlyniad yr Aelod: ${r.memberresult || "Anhysbys"}.`,
-      r.voteresultcy ? `Cyffredinol: ${r.voteresultcy}.` : "",
+      `Canlyniad yr Aelod: ${r.member_result || "Anhysbys"}.`,
+      r.vote_result_cy ? `Cyffredinol: ${r.vote_result_cy}.` : "",
       totals,
     ]
       .filter(Boolean)
@@ -129,25 +97,25 @@ async function loadMemberVotes(memberId: string) {
       .trim();
 
     return {
-      id: `vote:${r.meetingid}:${r.contributionid}`,
+      id: `vote:${r.meeting_id}:${r.contribution_id}`,
       kind: "vote" as const,
-      occurredAt: r.occurredat,
-      title: (r.votenameen ?? r.votenamecw ?? "Vote").trim(),
-      contextEn: r.votenameen ?? undefined,
-      contextCy: r.votenamecw ?? undefined,
+      occurredAt: r.occurred_at,
+      title: (r.vote_name_en ?? r.vote_name_cy ?? "Vote").trim(),
+      contextEn: r.vote_name_en ?? undefined,
+      contextCy: r.vote_name_cy ?? undefined,
       snippetEn,
       snippetCy: snippetCy || undefined,
       vote: {
-        memberResult: normalizeVoteMemberResult(r.memberresult),
-        memberResultRaw: r.memberresult,
-        overallEn: r.voteresulten ?? null,
-        overallCy: r.voteresultcy ?? null,
+        memberResult: normalizeVoteMemberResult(r.member_result),
+        memberResultRaw: r.member_result,
+        overallEn: r.vote_result_en ?? null,
+        overallCy: r.vote_result_cy ?? null,
         totals:
-          r.totalsfor != null && r.totalsagainst != null && r.totalsabstain != null
-            ? { for: r.totalsfor, against: r.totalsagainst, abstain: r.totalsabstain }
+          r.totals_for != null && r.totals_against != null && r.totals_abstain != null
+            ? { for: r.totals_for, against: r.totals_against, abstain: r.totals_abstain }
             : null,
       },
-      sourceUrl: r.sourceurl,
+      sourceUrl: r.source_url,
       confidence: r.confidence,
     };
   });
@@ -179,18 +147,17 @@ function buildSummary(speechItems: Array<{ occurredAt: string; title?: string; s
 }
 
 async function computeLastUpdatedAt(): Promise<string | null> {
-  const results = await Promise.allSettled([
-    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, updated_at)) as v FROM members`),
-    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, extracted_at)) as v FROM spoken_contributions`),
-    query<{ v: string | null }>(`SELECT MAX(COALESCE(last_updated_at, extracted_at)) as v FROM member_votes`),
+  const results = await Promise.all([
+    supabase().from("members").select("updated_at,last_updated_at").order("updated_at", { ascending: false }).limit(1),
+    supabase().from("spoken_contributions").select("extracted_at,last_updated_at").order("extracted_at", { ascending: false }).limit(1),
+    supabase().from("member_votes").select("extracted_at,last_updated_at").order("extracted_at", { ascending: false }).limit(1),
   ]);
 
   let max = 0;
-  for (const r of results) {
-    if (r.status === "fulfilled") {
-      const v = r.value.rows[0]?.v;
-      if (v) max = Math.max(max, Number(v));
-    }
+  for (const res of results) {
+    const row = res.data?.[0] as any;
+    const v = row?.last_updated_at ?? row?.updated_at ?? row?.extracted_at;
+    if (v) max = Math.max(max, Number(v));
   }
   return max ? new Date(max).toISOString() : null;
 }
@@ -199,7 +166,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  const rawId = (await params).id;
+  const id = decodeURIComponent(rawId);
 
   try {
     const [speechItems, voteItems, lastUpdatedAt] = await Promise.all([

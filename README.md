@@ -123,10 +123,11 @@ The MVP is designed to keep working beyond the dissertation with a simple refres
 - Refreshing does not overwrite or delete old contribution rows, allowing future extensions like new time periods or assemblies without losing earlier data.
 
 ## Environment variables
-Set `DATABASE_URL` to your Supabase Postgres connection string.
+Set these in `.env`:
 ```
 PORT=5174
-DATABASE_URL=postgresql://...
+SUPABASE_DB_URL=postgresql://postgres:...@db.your-project.supabase.co:5432/postgres
+TWFY_API_KEY=...
 CACHE_TTL_SECONDS=86400
 ```
 

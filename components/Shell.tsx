@@ -102,7 +102,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="container">
           <div className="nav__inner">
             <Link href="/" className="nav__brand">
-              <AppLogo size={32} />
+              <AppLogo size={44} />
               <div className="nav__brand-text">
                 <span className="nav__brand-name">{t("app_title")}</span>
                 <span className="nav__brand-sub">{t("app_subtitle_short")}</span>

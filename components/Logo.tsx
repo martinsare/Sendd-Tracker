@@ -3,11 +3,11 @@
 export function AppLogo({ size = 32 }: { size?: number }) {
   return (
     <img
-      src="/icon.png"
-      alt="Senedd Tracker"
+      src="/senedd-mark.png"
+      alt="Senedd logo"
       width={size}
       height={size}
-      style={{ borderRadius: Math.round(size * 0.22), display: "block", objectFit: "cover" }}
+      style={{ borderRadius: Math.round(size * 0.18), display: "block", objectFit: "contain", background: "transparent" }}
       onError={(e) => {
         // Fallback: hide broken image
         (e.target as HTMLImageElement).style.display = "none";

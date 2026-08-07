@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { supabase } from "@/lib/db";
+import { fetchMS } from "@/lib/sources/twfy";
 
 function seneddBigPicUrl(uid: number) {
   const last3 = String(uid % 1000).padStart(3, "0");
@@ -14,16 +15,41 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const { rows } = await query<{ senedduid: number | null; imageurl: string | null }>(
-    `SELECT senedd_uid as senedduid, image_url as imageurl FROM members WHERE id = $1`,
-    [id]
-  );
+  if (id.startsWith("twfy:")) {
+    const personId = id.slice("twfy:".length);
+    const ms = await fetchMS({ personId });
+    const item = ms[0];
+    if (item?.image) {
+      const upstream = await fetch(`https://www.theyworkforyou.com${item.image}`, {
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
+          accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        },
+      });
+      if (upstream.ok && upstream.body) {
+        const contentType = upstream.headers.get("content-type") ?? "image/jpeg";
+        const bytes = await upstream.arrayBuffer();
+        return new NextResponse(bytes, {
+          status: 200,
+          headers: {
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=86400",
+          },
+        });
+      }
+    }
+  }
 
-  const row = rows[0];
+  const { data: row } = await supabase()
+    .from("members")
+    .select("senedd_uid,image_url")
+    .eq("id", id)
+    .maybeSingle<any>();
   if (!row) return new NextResponse(null, { status: 404 });
 
   const upstreamUrl =
-    row.senedduid != null ? seneddBigPicUrl(row.senedduid) : row.imageurl;
+    row.senedd_uid != null ? seneddBigPicUrl(row.senedd_uid) : row.image_url;
   if (!upstreamUrl) return new NextResponse(null, { status: 404 });
 
   try {

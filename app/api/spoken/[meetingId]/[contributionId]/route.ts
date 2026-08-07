@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { supabase } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
@@ -12,48 +12,30 @@ export async function GET(
   if (!Number.isFinite(mId) || !Number.isFinite(cId))
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
-  const { rows } = await query<{
-    id: string;
-    memberId: string;
-    speakername: string;
-    occurredat: string;
-    contexten: string | null;
-    contextcy: string | null;
-    snippeten: string;
-    snippetcy: string | null;
-    fulltexten: string | null;
-    fulltextcy: string | null;
-    sourceurl: string;
-    confidence: string;
-  }>(
-    `SELECT id, member_id as "memberId", speaker_name as speakername, occurred_at as occurredat,
-            context_en as contexten, context_cy as contextcy,
-            snippet_en as snippeten, snippet_cy as snippetcy,
-            full_text_en as fulltexten, full_text_cy as fulltextcy,
-            source_url as sourceurl, confidence
-     FROM spoken_contributions
-     WHERE meeting_id=$1 AND contribution_id=$2
-     LIMIT 10`,
-    [mId, cId]
-  );
+  const { data } = await supabase()
+    .from("spoken_contributions")
+    .select("id,member_id,speaker_name,occurred_at,context_en,context_cy,snippet_en,snippet_cy,full_text_en,full_text_cy,source_url,confidence")
+    .eq("meeting_id", mId)
+    .eq("contribution_id", cId)
+    .limit(10);
 
-  if (!rows.length)
+  if (!(data ?? []).length)
     return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
 
   return NextResponse.json({
     meetingId: mId,
     contributionId: cId,
-    speakers: rows.map((r) => ({
-      memberId: r.memberId,
-      speakerName: r.speakername,
-      occurredAt: r.occurredat,
-      contextEn: r.contexten,
-      contextCy: r.contextcy,
-      snippetEn: r.snippeten,
-      snippetCy: r.snippetcy,
-      fullTextEn: r.fulltexten,
-      fullTextCy: r.fulltextcy,
-      sourceUrl: r.sourceurl,
+    speakers: (data ?? []).map((r: any) => ({
+      memberId: r.member_id,
+      speakerName: r.speaker_name,
+      occurredAt: r.occurred_at,
+      contextEn: r.context_en,
+      contextCy: r.context_cy,
+      snippetEn: r.snippet_en,
+      snippetCy: r.snippet_cy,
+      fullTextEn: r.full_text_en,
+      fullTextCy: r.full_text_cy,
+      sourceUrl: r.source_url,
       confidence: r.confidence,
     })),
   });
