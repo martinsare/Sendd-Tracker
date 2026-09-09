@@ -37,10 +37,27 @@ export async function GET(
 
   if (!data.length)
     return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
+  const url = new URL(_req.url);
+  const memberIdQuery = url.searchParams.get("memberId");
+
+  const chosen = (memberIdQuery ? data.find((r: any) => r.member_id === memberIdQuery) : null) ?? data[0];
 
   return NextResponse.json({
     meetingId: mId,
     contributionId: cId,
+    memberId: chosen.member_id,
+    speakerName: chosen.speaker_name,
+    occurredAt: chosen.occurred_at,
+    contextEn: chosen.context_en ?? null,
+    contextCy: chosen.context_cy ?? null,
+    snippetEn: chosen.snippet_en,
+    snippetCy: chosen.snippet_cy ?? null,
+    fullTextEn: chosen.full_text_en ?? chosen.snippet_en ?? null,
+    fullTextCy: chosen.full_text_cy ?? chosen.snippet_cy ?? null,
+    sourceUrl: chosen.source_url,
+    confidence: chosen.confidence,
+    transcriptXmlUrl: `https://record.senedd.wales/XMLExport/Plenary/${mId}`,
+    recordPageUrl: `https://record.senedd.wales/Plenary/${mId}`,
     speakers: data.map((r: any) => ({
       memberId: r.member_id,
       speakerName: r.speaker_name,

@@ -112,16 +112,18 @@ function ShareIcon() {
   );
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
   } catch {
-    return iso;
+    return iso || "—";
   }
 }
 
