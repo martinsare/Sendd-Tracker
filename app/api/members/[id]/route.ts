@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
-import { fetchMS } from "@/lib/sources/twfy";
+import { getConvexClient, isConvexConfigured, localDb } from "@/lib/db";
+import { fetchMS, twfyPhotoUrl } from "@/lib/sources/twfy";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
@@ -14,13 +16,16 @@ export async function GET(
     const ms = await fetchMS({ personId });
     const item = ms[0];
     if (item) {
-      const imageUrl = item.image ? `https://www.theyworkforyou.com${item.image}` : null;
+      const imageUrl = item.image
+        ? (item.image.startsWith("http") ? item.image : `https://www.theyworkforyou.com${item.image}`)
+        : twfyPhotoUrl(personId);
+
       return NextResponse.json({
         id,
         name: item.full_name || item.name,
         party: item.party ?? null,
         areaName: item.constituency ?? null,
-        areaType: "Constituency",
+        areaType: item.constituency?.includes("Wales") ? "Region" : "Constituency",
         profileUrl: null,
         imageUrl,
         updatedAt: Date.now(),
@@ -28,27 +33,47 @@ export async function GET(
     }
   }
 
-  const { data: row } = await supabase()
-    .from("members")
-    .select("id,name,party,area_name,area_type,profile_url,senedd_uid,image_url,updated_at")
-    .eq("id", id)
-    .maybeSingle<any>();
+  // Check Convex
+  if (isConvexConfigured()) {
+    try {
+      const client = getConvexClient();
+      if (client) {
+        const row = await (client as any).query("members:getById", { id });
+        if (row) {
+          return NextResponse.json({
+            id: row.id,
+            name: row.name,
+            party: row.party ?? null,
+            areaName: row.area_name ?? null,
+            areaType: row.area_type ?? null,
+            profileUrl: row.profile_url ?? null,
+            imageUrl: row.image_url ?? null,
+            updatedAt: Number(row.updated_at),
+          });
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
 
-  if (row) {
+  // Check local store
+  const local = localDb.members.get(id);
+  if (local) {
     return NextResponse.json({
-      id: row.id,
-      name: row.name,
-      party: row.party,
-      areaName: row.area_name,
-      areaType: row.area_type,
-      profileUrl: row.profile_url,
-      imageUrl: row.image_url ? row.image_url : null,
-      updatedAt: Number(row.updated_at),
+      id: local.id,
+      name: local.name,
+      party: local.party ?? null,
+      areaName: local.area_name ?? null,
+      areaType: local.area_type ?? null,
+      profileUrl: local.profile_url ?? null,
+      imageUrl: local.image_url ?? null,
+      updatedAt: Number(local.updated_at),
     });
   }
 
   return NextResponse.json(
-    { error: "Member not found (not cached yet)" },
+    { error: "Member not found" },
     { status: 404 }
   );
 }

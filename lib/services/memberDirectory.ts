@@ -1,5 +1,7 @@
-import { supabase } from "../db";
+import { getConvexClient, isConvexConfigured, localDb } from "../db";
+import { api } from "../../convex/_generated/api";
 import { fetchAllMSs, twfyMemberId, twfyPhotoUrl } from "../sources/twfy";
+import { getRegionForConstituency } from "../geo/seneddRegions";
 
 export type DirectoryMember = {
   id: string;
@@ -9,6 +11,19 @@ export type DirectoryMember = {
   areaType: "Constituency" | "Region";
   profileUrl?: string;
   imageUrl?: string;
+};
+
+// Welsh-to-English and English-to-Welsh area synonym mappings for robust matching
+const AREA_SYNONYMS: Record<string, string[]> = {
+  caerdydd: ["cardiff", "cardiff south and penarth", "cardiff west", "cardiff north", "cardiff central", "south wales central"],
+  cardiff: ["caerdydd", "cardiff south and penarth", "cardiff west", "cardiff north", "cardiff central", "south wales central"],
+  swansea: ["abertawe", "swansea east", "swansea west", "gower", "south wales west"],
+  abertawe: ["swansea", "swansea east", "swansea west", "gower", "south wales west"],
+  newport: ["casnewydd", "newport east", "newport west", "south wales east"],
+  casnewydd: ["newport", "newport east", "newport west", "south wales east"],
+  wrexham: ["wrecsam"],
+  wrecsam: ["wrexham"],
+  penarth: ["cardiff south and penarth"],
 };
 
 export async function ensureMemberDirectorySeeded(): Promise<void> {
@@ -25,81 +40,96 @@ export async function ensureMemberDirectorySeeded(): Promise<void> {
 }
 
 export async function upsertDirectoryMembers(
-  members: Array<{ personId: string; name: string; party?: string; constituency: string; image?: string }>,
+  members: Array<{ personId: string | number; name: string; party?: string; constituency: string; image?: string }>,
 ): Promise<void> {
   const now = Date.now();
-  await (supabase() as any).from("members").upsert(
-    members.map((m) => ({
-      id: twfyMemberId(m.personId),
-      name: m.name,
-      party: m.party ?? null,
-      area_name: m.constituency,
-      area_type: "Constituency",
-      profile_url: null,
-      image_url: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.personId),
-      updated_at: now,
-      last_updated_at: now,
-    })),
-    { onConflict: "id" },
-  );
+  const formatted = members.map((m) => ({
+    id: twfyMemberId(m.personId),
+    name: m.name,
+    party: m.party ?? undefined,
+    area_name: m.constituency,
+    area_type: m.constituency.includes("Wales") ? "Region" : "Constituency",
+    profile_url: undefined,
+    image_url: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.personId),
+    updated_at: now,
+    last_updated_at: now,
+  }));
+
+  // Store in local in-memory DB
+  for (const m of formatted) {
+    localDb.members.set(m.id, m);
+  }
+
+  // Store in Convex if configured
+  if (isConvexConfigured()) {
+    try {
+      const client = getConvexClient();
+      if (client) {
+        await client.mutation(api.members.upsertMembers, { members: formatted });
+      }
+    } catch {
+      // Ignore mutation errors
+    }
+  }
 }
 
 export async function findMembersForConstituency(constituencyName: string): Promise<DirectoryMember[]> {
-  const { data } = await supabase()
-    .from("members")
-    .select("id,name,party,area_name,area_type,profile_url,image_url")
-    .ilike("area_name", constituencyName)
-    .order("name", { ascending: true });
-  return (data ?? []).map(mapRow);
+  return await searchMembersByAreaOrName(constituencyName);
 }
 
 export async function searchMembersByAreaOrName(queryStr: string): Promise<DirectoryMember[]> {
-  const q = queryStr.trim();
+  const q = queryStr.trim().toLowerCase();
   if (!q) return [];
 
   const live = await fetchAllMSs();
-  const liveMatches = live
-    .filter((m) => {
-      const name = `${m.full_name || m.name} ${m.constituency} ${m.party}`.toLowerCase();
-      return name.includes(q.toLowerCase());
-    })
-    .map((m) => ({
-      id: twfyMemberId(m.person_id),
-      name: m.full_name || m.name,
-      party: m.party ?? undefined,
-      areaName: m.constituency,
-      areaType: "Constituency" as const,
-      profileUrl: undefined,
-      imageUrl: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.person_id),
-    }));
-  if (liveMatches.length) return liveMatches;
+  const searchTerms = [q];
 
-  const { data: exactArea } = await supabase()
-    .from("members")
-    .select("id,name,party,area_name,area_type,profile_url,image_url")
-    .ilike("area_name", q)
-    .order("name", { ascending: true });
-  if (exactArea?.length) return exactArea.map(mapRow);
+  for (const [key, syns] of Object.entries(AREA_SYNONYMS)) {
+    if (q.includes(key)) {
+      searchTerms.push(...syns);
+    }
+  }
 
-  const { data } = await supabase()
-    .from("members")
-    .select("id,name,party,area_name,area_type,profile_url,image_url")
-    .ilike("name", `%${q}%`)
-    .order("name", { ascending: true })
-    .limit(20);
-  const cached = (data ?? []).map(mapRow);
-  if (cached.length) return cached;
-  return [];
-}
+  // Direct matching members (by name, constituency, or party)
+  const matchedMSs = live.filter((m) => {
+    const text = `${m.full_name || m.name} ${m.constituency} ${m.party}`.toLowerCase();
+    return searchTerms.some((t) => text.includes(t) || t.includes(m.constituency.toLowerCase()));
+  });
 
-function mapRow(m: any): DirectoryMember {
-  return {
-    id: m.id,
-    name: m.name,
+  // If any matched member is a Constituency MS, also include the 4 Regional MSs representing that region
+  const additionalRegions = new Set<string>();
+  for (const m of matchedMSs) {
+    const reg = getRegionForConstituency(m.constituency);
+    if (reg) {
+      additionalRegions.add(reg.toLowerCase());
+    }
+  }
+
+  // Also check if the search term itself matches a known constituency
+  const directRegion = getRegionForConstituency(queryStr);
+  if (directRegion) {
+    additionalRegions.add(directRegion.toLowerCase());
+  }
+
+  // Combine matched members with any additional regional MSs
+  const allResults = [...matchedMSs];
+  if (additionalRegions.size > 0) {
+    for (const m of live) {
+      if (additionalRegions.has(m.constituency.toLowerCase())) {
+        if (!allResults.some((existing) => existing.person_id === m.person_id)) {
+          allResults.push(m);
+        }
+      }
+    }
+  }
+
+  return allResults.map((m) => ({
+    id: twfyMemberId(m.person_id),
+    name: m.full_name || m.name,
     party: m.party ?? undefined,
-    areaName: m.area_name,
-    areaType: m.area_type,
-    profileUrl: m.profile_url ?? undefined,
-    imageUrl: m.image_url ?? undefined,
-  };
+    areaName: m.constituency,
+    areaType: (m.constituency.includes("Wales") ? "Region" : "Constituency") as "Constituency" | "Region",
+    profileUrl: undefined,
+    imageUrl: m.image ? `https://www.theyworkforyou.com${m.image}` : twfyPhotoUrl(m.person_id),
+  }));
 }

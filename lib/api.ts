@@ -121,6 +121,23 @@ export type SpokenContributionDetail = {
   recordPageUrl: string;
 };
 
+export type DebateItem = {
+  gid: string;
+  hdate: string;
+  htime?: string;
+  body: string;
+  epheading?: string;
+  listurl?: string;
+};
+
+export type DebatesResponse = {
+  query: string;
+  total_results: number;
+  debates: DebateItem[];
+  sourceUrl: string;
+  fromCache: boolean;
+};
+
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`API error (${res.status})`);
@@ -147,24 +164,35 @@ export function getMember(memberId: string) {
   return apiGet<MemberResponse>(`/api/members/${encodeURIComponent(memberId)}`);
 }
 
-export async function refreshData(args?: { maxMeetings?: number; force?: boolean }) {
-  const res = await fetch(`/api/refresh`, {
+export function refreshData(args?: { maxMeetings?: number; force?: boolean }) {
+  return fetch(`/api/refresh`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(args ?? {})
+    body: JSON.stringify(args ?? {}),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`API error (${res.status})`);
+    return (await res.json()) as {
+      ok: boolean;
+      startedAt: string;
+      finishedAt: string;
+      maxMeetings: number;
+      force: boolean;
+      contributionsInserted: number;
+    };
   });
-  if (!res.ok) throw new Error(`API error (${res.status})`);
-  return (await res.json()) as {
-    ok: boolean;
-    startedAt: string;
-    finishedAt: string;
-    maxMeetings: number;
-    force: boolean;
-    contributionsInserted: number;
-  };
 }
 
 export function getSpokenContributionDetail(args: { meetingId: number; contributionId: number; memberId?: string }) {
   const q = args.memberId ? `?memberId=${encodeURIComponent(args.memberId)}` : "";
   return apiGet<SpokenContributionDetail>(`/api/spoken/${args.meetingId}/${args.contributionId}${q}`);
+}
+
+export function getDebates(args?: { q?: string; personId?: string; page?: number; num?: number }) {
+  const params = new URLSearchParams();
+  if (args?.q) params.set("q", args.q);
+  if (args?.personId) params.set("personId", args.personId);
+  if (args?.page) params.set("page", String(args.page));
+  if (args?.num) params.set("num", String(args.num));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiGet<DebatesResponse>(`/api/debates${qs}`);
 }

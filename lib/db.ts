@@ -1,24 +1,31 @@
-import { createClient } from "@supabase/supabase-js";
+import { ConvexHttpClient } from "convex/browser";
 
 declare global {
   // eslint-disable-next-line no-var
-  var _supabaseClient: ReturnType<typeof createClient> | undefined;
+  var _convexClient: ConvexHttpClient | null | undefined;
 }
 
-function getSupabase() {
-  if (!globalThis._supabaseClient) {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY are required.");
+export function isConvexConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL;
+  return Boolean(url && url.startsWith("http"));
+}
+
+export function getConvexClient(): ConvexHttpClient | null {
+  if (globalThis._convexClient === undefined) {
+    const url = process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL;
+    if (!url || !url.startsWith("http")) {
+      globalThis._convexClient = null;
+    } else {
+      globalThis._convexClient = new ConvexHttpClient(url);
     }
-    globalThis._supabaseClient = createClient(url, key, {
-      auth: { persistSession: false },
-    });
   }
-  return globalThis._supabaseClient;
+  return globalThis._convexClient;
 }
 
-export function supabase() {
-  return getSupabase();
-}
+// In-memory fallback stores for when Convex is not yet connected
+export const localDb = {
+  members: new Map<string, any>(),
+  httpCache: new Map<string, any>(),
+  spokenContributions: new Map<string, any>(),
+  memberVotes: new Map<string, any>(),
+};

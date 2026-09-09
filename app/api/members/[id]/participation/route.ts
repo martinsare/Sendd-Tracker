@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
+import { getConvexClient, isConvexConfigured } from "@/lib/db";
+import { fetchSeneddDebates } from "@/lib/sources/twfy";
 import {
   classifyTopicsFromText,
   primaryTopicFromText,
   topTopicsFromItems,
   topicBreakdownFromItems,
 } from "@/lib/analysis/topics";
+
+export const dynamic = "force-dynamic";
 
 function inferSpeechKind(title: string, contextEn?: string): "speech" | "question" | "motion" {
   const t = `${title} ${contextEn ?? ""}`.toLowerCase();
@@ -24,101 +27,147 @@ function normalizeVoteMemberResult(input: string): "for" | "against" | "abstain"
   return null;
 }
 
-async function loadSpokenContributions(memberId: string) {
-  const { data } = await supabase()
-    .from("spoken_contributions")
-    .select(
-      "meeting_id,contribution_id,occurred_at,context_en,context_cy,snippet_en,snippet_cy,source_url,confidence",
-    )
-    .eq("member_id", memberId)
-    .order("occurred_at", { ascending: false })
-    .limit(50);
+async function loadTwfyDebates(memberId: string) {
+  const pid = memberId.replace(/^twfy:/, "");
+  const rows = await fetchSeneddDebates({ personId: pid, num: 50 });
 
-  return (data ?? []).map((r: any) => {
-    const title = (r.context_en ?? r.context_cy ?? "Plenary contribution").trim();
-    const contextEn = r.context_en ?? undefined;
-    const contextCy = r.context_cy ?? undefined;
-    const snippetEn = r.snippet_en;
-    const snippetCy = r.snippet_cy ?? undefined;
-    const topicText = [title, contextEn, contextCy, snippetEn, snippetCy].filter(Boolean).join(" ");
-    const topics = classifyTopicsFromText(topicText);
-    const primaryTopic = primaryTopicFromText(topicText);
-    const kind = inferSpeechKind(title, contextEn);
+  return rows.map((r, idx) => {
+    const rawBody = (r.body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const title = (r.parent?.epheading || r.parent?.body || r.epheading || "Senedd Plenary Contribution")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const occurredAt = r.hdate ? `${r.hdate}${r.htime ? `T${r.htime}Z` : "T12:00:00Z"}` : new Date().toISOString();
+    const snippetEn = rawBody.slice(0, 300) + (rawBody.length > 300 ? "…" : "");
+    const topics = classifyTopicsFromText(`${title} ${rawBody}`);
+    const primaryTopic = primaryTopicFromText(`${title} ${rawBody}`);
+    const kind = inferSpeechKind(title, rawBody);
+    const sourceUrl = r.listurl
+      ? r.listurl.startsWith("http")
+        ? r.listurl
+        : `https://www.theyworkforyou.com${r.listurl}`
+      : `https://www.theyworkforyou.com/senedd/?pid=${pid}`;
 
     return {
-      id: `spoken:${r.meeting_id}:${r.contribution_id}`,
+      id: `twfy:debate:${r.gid || idx}`,
       kind,
-      occurredAt: r.occurred_at,
+      occurredAt,
       title,
-      contextEn,
-      contextCy,
+      contextEn: title,
+      contextCy: undefined,
       snippetEn,
-      snippetCy,
+      snippetCy: undefined,
       topics,
       primaryTopic,
-      sourceUrl: r.source_url,
-      confidence: r.confidence,
+      sourceUrl,
+      confidence: "high" as const,
     };
   });
 }
 
+async function loadSpokenContributions(memberId: string) {
+  if (isConvexConfigured()) {
+    try {
+      const client = getConvexClient();
+      if (client) {
+        const rows = await (client as any).query("contributions:getByMember", { memberId, limit: 50 });
+        if (Array.isArray(rows)) {
+          return rows.map((r: any) => {
+            const title = (r.context_en ?? r.context_cy ?? "Plenary contribution").trim();
+            const contextEn = r.context_en ?? undefined;
+            const contextCy = r.context_cy ?? undefined;
+            const snippetEn = r.snippet_en;
+            const snippetCy = r.snippet_cy ?? undefined;
+            const topicText = [title, contextEn, contextCy, snippetEn, snippetCy].filter(Boolean).join(" ");
+            const topics = classifyTopicsFromText(topicText);
+            const primaryTopic = primaryTopicFromText(topicText);
+            const kind = inferSpeechKind(title, contextEn);
+
+            return {
+              id: `spoken:${r.meeting_id}:${r.contribution_id}`,
+              kind,
+              occurredAt: r.occurred_at,
+              title,
+              contextEn,
+              contextCy,
+              snippetEn,
+              snippetCy,
+              topics,
+              primaryTopic,
+              sourceUrl: r.source_url,
+              confidence: r.confidence,
+            };
+          });
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return [];
+}
+
 async function loadMemberVotes(memberId: string) {
-  const { data } = await supabase()
-    .from("member_votes")
-    .select(
-      "meeting_id,contribution_id,occurred_at,vote_name_en,vote_name_cy,vote_result_en,vote_result_cy,totals_for,totals_against,totals_abstain,member_result,source_url,confidence",
-    )
-    .eq("member_id", memberId)
-    .order("occurred_at", { ascending: false })
-    .limit(50);
+  if (isConvexConfigured()) {
+    try {
+      const client = getConvexClient();
+      if (client) {
+        const rows = await (client as any).query("votes:getByMember", { memberId, limit: 50 });
+        if (Array.isArray(rows)) {
+          return rows.map((r: any) => {
+            const totals =
+              r.totals_for != null && r.totals_against != null && r.totals_abstain != null
+                ? `Totals: For ${r.totals_for}, Against ${r.totals_against}, Abstain ${r.totals_abstain}.`
+                : "";
 
-  return (data ?? []).map((r: any) => {
-    const totals =
-      r.totals_for != null && r.totals_against != null && r.totals_abstain != null
-        ? `Totals: For ${r.totals_for}, Against ${r.totals_against}, Abstain ${r.totals_abstain}.`
-        : "";
+            const snippetEn = [
+              `Member result: ${r.member_result || "Unknown"}.`,
+              r.vote_result_en ? `Overall: ${r.vote_result_en}.` : "",
+              totals,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
 
-    const snippetEn = [
-      `Member result: ${r.member_result || "Unknown"}.`,
-      r.vote_result_en ? `Overall: ${r.vote_result_en}.` : "",
-      totals,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+            const snippetCy = [
+              `Canlyniad yr Aelod: ${r.member_result || "Anhysbys"}.`,
+              r.vote_result_cy ? `Cyffredinol: ${r.vote_result_cy}.` : "",
+              totals,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
 
-    const snippetCy = [
-      `Canlyniad yr Aelod: ${r.member_result || "Anhysbys"}.`,
-      r.vote_result_cy ? `Cyffredinol: ${r.vote_result_cy}.` : "",
-      totals,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    return {
-      id: `vote:${r.meeting_id}:${r.contribution_id}`,
-      kind: "vote" as const,
-      occurredAt: r.occurred_at,
-      title: (r.vote_name_en ?? r.vote_name_cy ?? "Vote").trim(),
-      contextEn: r.vote_name_en ?? undefined,
-      contextCy: r.vote_name_cy ?? undefined,
-      snippetEn,
-      snippetCy: snippetCy || undefined,
-      vote: {
-        memberResult: normalizeVoteMemberResult(r.member_result),
-        memberResultRaw: r.member_result,
-        overallEn: r.vote_result_en ?? null,
-        overallCy: r.vote_result_cy ?? null,
-        totals:
-          r.totals_for != null && r.totals_against != null && r.totals_abstain != null
-            ? { for: r.totals_for, against: r.totals_against, abstain: r.totals_abstain }
-            : null,
-      },
-      sourceUrl: r.source_url,
-      confidence: r.confidence,
-    };
-  });
+            return {
+              id: `vote:${r.meeting_id}:${r.contribution_id}`,
+              kind: "vote" as const,
+              occurredAt: r.occurred_at,
+              title: (r.vote_name_en ?? r.vote_name_cy ?? "Vote").trim(),
+              contextEn: r.vote_name_en ?? undefined,
+              contextCy: r.vote_name_cy ?? undefined,
+              snippetEn,
+              snippetCy: snippetCy || undefined,
+              vote: {
+                memberResult: normalizeVoteMemberResult(r.member_result),
+                memberResultRaw: r.member_result,
+                overallEn: r.vote_result_en ?? null,
+                overallCy: r.vote_result_cy ?? null,
+                totals:
+                  r.totals_for != null && r.totals_against != null && r.totals_abstain != null
+                    ? { for: r.totals_for, against: r.totals_against, abstain: r.totals_abstain }
+                    : null,
+              },
+              sourceUrl: r.source_url,
+              confidence: r.confidence,
+            };
+          });
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return [];
 }
 
 function buildSummary(speechItems: Array<{ occurredAt: string; title?: string; snippetEn?: string; snippetCy?: string; contextEn?: string; contextCy?: string }>) {
@@ -146,22 +195,6 @@ function buildSummary(speechItems: Array<{ occurredAt: string; title?: string; s
   return { totalContributions, contributionsLast30Days, mostActiveMonth, topTopics, topicBreakdown, activityLevel };
 }
 
-async function computeLastUpdatedAt(): Promise<string | null> {
-  const results = await Promise.all([
-    supabase().from("members").select("updated_at,last_updated_at").order("updated_at", { ascending: false }).limit(1),
-    supabase().from("spoken_contributions").select("extracted_at,last_updated_at").order("extracted_at", { ascending: false }).limit(1),
-    supabase().from("member_votes").select("extracted_at,last_updated_at").order("extracted_at", { ascending: false }).limit(1),
-  ]);
-
-  let max = 0;
-  for (const res of results) {
-    const row = res.data?.[0] as any;
-    const v = row?.last_updated_at ?? row?.updated_at ?? row?.extracted_at;
-    if (v) max = Math.max(max, Number(v));
-  }
-  return max ? new Date(max).toISOString() : null;
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -170,32 +203,44 @@ export async function GET(
   const id = decodeURIComponent(rawId);
 
   try {
-    const [speechItems, voteItems, lastUpdatedAt] = await Promise.all([
-      loadSpokenContributions(id),
-      loadMemberVotes(id),
-      computeLastUpdatedAt(),
+    const [twfyDebates, dbSpeeches, dbVotes] = await Promise.all([
+      loadTwfyDebates(id).catch(() => []),
+      loadSpokenContributions(id).catch(() => []),
+      loadMemberVotes(id).catch(() => []),
     ]);
 
-    const items = [...speechItems, ...voteItems].sort((a, b) =>
+    // Merge TheyWorkForYou debates with any database extracted speeches (deduplicating by title/date)
+    const seenTitles = new Set<string>();
+    const allSpeeches = [];
+
+    for (const item of [...twfyDebates, ...dbSpeeches]) {
+      const key = `${item.title.toLowerCase()}_${item.occurredAt.slice(0, 10)}`;
+      if (!seenTitles.has(key)) {
+        seenTitles.add(key);
+        allSpeeches.push(item);
+      }
+    }
+
+    const items = [...allSpeeches, ...dbVotes].sort((a, b) =>
       b.occurredAt.localeCompare(a.occurredAt)
     );
 
-    const dataNotes: string[] = ["limited_to_recent_plenary_exports"];
+    const dataNotes: string[] = ["theyworkforyou_api_live", "limited_to_recent_plenary_exports"];
     if (items.some((i) => i.confidence !== "high")) dataNotes.push("name_matching_uncertain");
-    if (speechItems.length === 0) dataNotes.push("no_recent_contributions_found");
+    if (allSpeeches.length === 0) dataNotes.push("no_recent_contributions_found");
 
-    const summary = buildSummary(speechItems);
+    const summary = buildSummary(allSpeeches);
 
     return NextResponse.json({
       memberId: id,
-      lastUpdatedAt,
+      lastUpdatedAt: new Date().toISOString(),
       real: {
         implemented: true,
         partial: true,
         items,
         dataNotes,
         topicClassificationNote:
-          "Topic classification is based on keyword matching and may not fully reflect intent.",
+          "Debates, speeches, and member contributions are retrieved via the TheyWorkForYou API.",
       },
       summary: {
         ...summary,

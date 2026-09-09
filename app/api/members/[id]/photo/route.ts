@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
+import { getConvexClient, isConvexConfigured, localDb } from "@/lib/db";
 import { fetchMS } from "@/lib/sources/twfy";
+
+export const dynamic = "force-dynamic";
 
 function seneddBigPicUrl(uid: number) {
   const last3 = String(uid % 1000).padStart(3, "0");
@@ -41,11 +43,22 @@ export async function GET(
     }
   }
 
-  const { data: row } = await supabase()
-    .from("members")
-    .select("senedd_uid,image_url")
-    .eq("id", id)
-    .maybeSingle<any>();
+  let row: any = null;
+  if (isConvexConfigured()) {
+    try {
+      const client = getConvexClient();
+      if (client) {
+        row = await (client as any).query("members:getById", { id });
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  if (!row) {
+    row = localDb.members.get(id);
+  }
+
   if (!row) return new NextResponse(null, { status: 404 });
 
   const upstreamUrl =
