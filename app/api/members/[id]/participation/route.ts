@@ -7,6 +7,8 @@ import {
   topTopicsFromItems,
   topicBreakdownFromItems,
 } from "@/lib/analysis/topics";
+import { logServerSideError } from "@/lib/services/errorLog";
+
 
 export const dynamic = "force-dynamic";
 
@@ -254,9 +256,15 @@ export async function GET(
       },
     });
   } catch (e: unknown) {
+    const { errorRef, publicMessage } = await logServerSideError({
+      endpoint: `/api/members/${id}/participation`,
+      error: e,
+      metadata: { memberId: id },
+    });
     return NextResponse.json(
-      { error: "Participation load failed", detail: String((e as Error)?.message ?? e) },
+      { error: publicMessage, errorRef },
       { status: 502 }
     );
   }
 }
+

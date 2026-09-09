@@ -7,6 +7,8 @@ import {
   upsertDirectoryMembers,
   searchMembersByAreaOrName,
 } from "@/lib/services/memberDirectory";
+import { logServerSideError } from "@/lib/services/errorLog";
+
 
 const querySchema = z.object({ q: z.string().min(1).max(200) });
 
@@ -95,10 +97,16 @@ export async function GET(req: NextRequest) {
       fromCache: true,
     });
   } catch (e: unknown) {
+    const { errorRef, publicMessage } = await logServerSideError({
+      endpoint: "/api/search",
+      error: e,
+      metadata: { query: q },
+    });
     return NextResponse.json(
-      { error: "Upstream lookup failed", detail: String((e as Error)?.message ?? e) },
+      { error: publicMessage, errorRef },
       { status: 502 }
     );
   }
 }
+
 

@@ -161,8 +161,47 @@ export function twfyPhotoUrl(personId: string | number): string {
   return `https://www.theyworkforyou.com/people-images/mpsL/${pid}.jpeg`;
 }
 
+export type TwfyPersonTerm = {
+  member_id: string | number;
+  house: number; // 1 = Commons, 2 = Lords, 3 = Scottish Parl, 4 = NI Assembly, 5 = Senedd
+  constituency?: string;
+  party?: string;
+  entered_house?: string;
+  left_house?: string;
+  entered_reason?: string;
+  left_reason?: string;
+};
+
+/**
+ * Returns full biographical career history & terms for a Member across Senedd/Westminster.
+ * Cached for 7 days.
+ */
+export async function fetchPersonHistory(personId: string | number): Promise<TwfyPersonTerm[]> {
+  if (env.twfyApiKey) {
+    try {
+      const pid = String(personId).replace(/^twfy:/, "");
+      const url = `${BASE}/getPerson?output=json&key=${encodeURIComponent(env.twfyApiKey)}&id=${encodeURIComponent(pid)}`;
+      const res = await cachedFetchText({
+        url,
+        source: "twfy-person-terms",
+        ttlSeconds: TTL_SEVEN_DAYS,
+        cacheKeyHint: pid,
+      });
+
+      if (res.status >= 200 && res.status < 300) {
+        const data = JSON.parse(res.body);
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) {
+      console.error("TheyWorkForYou fetchPersonHistory error:", e);
+    }
+  }
+  return [];
+}
+
 /** Make a stable member ID from a TWFY person_id. */
 export function twfyMemberId(personId: string | number): string {
   const pid = String(personId).replace(/^twfy:/, "");
   return `twfy:${pid}`;
 }
+

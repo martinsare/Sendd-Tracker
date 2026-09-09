@@ -28,4 +28,13 @@ export const localDb = {
   httpCache: new Map<string, any>(),
   spokenContributions: new Map<string, any>(),
   memberVotes: new Map<string, any>(),
+  errorLogs: [] as Array<{
+    id: string;
+    endpoint: string;
+    message: string;
+    stack?: string;
+    metadata?: string;
+    created_at: number;
+  }>,
 };
+

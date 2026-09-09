@@ -75,5 +75,17 @@ export default defineSchema({
   })
     .index("by_member_id", ["member_id"])
     .index("by_occurred_at", ["occurred_at"]),
+
+  error_logs: defineTable({
+    id: v.string(),
+    endpoint: v.string(),
+    message: v.string(),
+    stack: v.optional(v.string()),
+    metadata: v.optional(v.string()),
+    created_at: v.number(),
+  })
+    .index("by_created_at", ["created_at"])
+    .index("by_endpoint", ["endpoint"]),
 });
+
 

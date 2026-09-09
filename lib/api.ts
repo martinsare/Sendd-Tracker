@@ -14,6 +14,15 @@ export type SearchResponse = {
   fromCache: boolean;
 };
 
+export type MemberTerm = {
+  house: string; // e.g. "Senedd Cymru", "UK Parliament"
+  constituency?: string;
+  party?: string;
+  startYear?: string;
+  endYear?: string;
+  isCurrent: boolean;
+};
+
 export type MemberResponse = {
   id: string;
   name: string;
@@ -23,6 +32,11 @@ export type MemberResponse = {
   profileUrl: string | null;
   imageUrl: string | null;
   updatedAt: number;
+  history?: {
+    tenureSummary?: string;
+    firstElectedYear?: string;
+    terms: MemberTerm[];
+  };
 };
 
 export type DataAvailabilityResponse = {

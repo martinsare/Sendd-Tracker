@@ -1,149 +1,89 @@
-# Senedd Tracker (MVP)
+# Senedd Tracker (Civic Accountability Platform)
 
-Full-stack civic dashboard MVP that helps users look up their Member of the Senedd (MS) by postcode or constituency/region name and view **recorded participation** with transparent data availability and official source links.
+[![Next.js 15](https://img.shields.io/badge/Next.js-15.5-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19-blue?style=flat&logo=react)](https://react.dev/)
+[![Convex Cloud](https://img.shields.io/badge/Database-Convex%20Cloud-orange?style=flat)](https://www.convex.dev/)
+[![Bilingual](https://img.shields.io/badge/Bilingual-Welsh%20%2F%20English-green?style=flat)](#bilingual-welsh---english-parity)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
-## Tech
+**Senedd Tracker** is an open-source civic transparency platform designed to bridge the gap between complex parliamentary open data and public understanding in Wales. 
 
-- React (Next.js 15) frontend & API routes
-- TheyWorkForYou (TWFY) API for parliamentary debates & MS profiles
-- Convex for reactive caching, cloud database, and persistence
+Built as an MSc dissertation project in **Computational & Data Journalism at Cardiff University**, the platform enables citizens to discover their elected Members of the Senedd (MSs) through multi-modal search (Welsh postcode, city name in Welsh/English, or politician name), inspect longitudinal career tenures, analyze policy-categorized debate speeches, and track chamber voting divisions.
 
-## Architecture (important)
+---
 
-- The React frontend calls the backend (`/api/...`) and Convex.
-- The backend fetches from public sources (TheyWorkForYou, MapIt), processes, caches to Convex, and serves a clean API.
-- Welsh UI labels are bilingual and political text is displayed only as provided by official sources.
+## Key Features
 
-## Architecture diagram (high level)
+### 1. Multi-Modal Representation Discovery (`/api/search`)
+- **Proportional Representation**: Given a Welsh postcode (e.g. `CF10 1EP`, `CF37 2PU`), resolves both the 1 local Constituency MS and the 4 Regional MSs representing that electoral region.
+- **Bilingual City & Area Search**: Searches by town/city names with automatic Welsh/English synonym mapping (e.g., `Caerdydd` <-> `Cardiff`, `Abertawe` <-> `Swansea`, `Casnewydd` <-> `Newport`, `Wrecsam` <-> `Wrexham`).
+- **Politician Name Search**: Instant lookups by representative name (e.g., `Rhun ap Iorwerth`, `Eluned Morgan`, `Andrew RT Davies`).
 
-```
-User browser
-  |
-  v
-Next.js UI (frontend)  ----->  Senedd Tracker API (backend)  ----->  Public sources (TWFY, MapIt)
-  |                                   |                                     |
-  |                                   v                                     |
-  |                            Convex Database                              |
-  |                                   |                                     |
-  +-----------------------------------+-------------------------------------+
-        UI only calls backend                 Backend fetches + caches
-```
+### 2. Longitudinal Career History & Multi-Term Timeline (`/member/[id]#history`)
+- Chronological career tracking mapping elected office across **Senedd Cymru** and the **UK House of Commons (Westminster)**.
+- Surfaces service duration metrics (e.g., `Serving in elected office since 2013 (4 terms)`).
+- Dignified civic fallback states for newly elected members with no previous terms on record.
 
-## Local setup
+### 3. Debate Intelligence & Senedd XML Ingestion (`/api/refresh`)
+- Over **937+ verified plenary speeches and questions** indexed from official Senedd Record of Proceedings XML feeds (`record.senedd.wales/XMLExport`).
+- **Weighted Topic Classifier Engine** (`lib/analysis/topics.ts`): Automatically categorizes speeches into *Health, Housing, Transport, Education, Economy, Welsh Language,* and *Environment*.
+- **Verbatim Bilingual Speech Reader Modal**: In-app full-text reading experience with instant English/Welsh Hansard switching and deep links to Senedd.tv video feeds.
 
-1. Install dependencies:
-   - `npm install`
-2. Start Convex:
-   - `npx convex dev`
-3. Start dev server:
-   - `npm run dev`
-4. Open:
-   - App: `http://localhost:5000`
-   - Backend health: `http://localhost:5000/api/health`
+### 4. Adaptive State Rendering (Anti-Cliché UX)
+- Replaces broken-looking empty boxes and negative zero counters (`0 in 30 days`) with positive verified achievements (*Total Plenary Transcripts, Primary Policy Focus, Live Senedd XML Verified Badge*).
+- Clear civic disclosures explaining that formal roll-call divisions occur only when challenged on the Senedd floor.
 
-## Database schema
+### 5. Open Data Audit & Error Shielding
+- **Public Data Availability Dashboard (`/data`)**: Complete status transparency, upstream source disclosures, and direct XML links for every metric.
+- **Administrative Error Logging (`/log` & `/logs`)**: Production error shielding that masks internal stack traces from public users (returning clean `ERR-XXXXXX` reference codes) while logging full payloads to Convex document tables for research auditing.
+- **Bilingual Welsh/English Parity**: Full compliance with the Welsh Language (Wales) Measure 2011 without automated/machine-translated political discourse.
 
-See `convex/schema.ts` for the typed Convex schema definition.
+---
 
-## Public sources used (via backend only)
+## Local Development Setup
 
-- MapIt (mySociety): postcode -> Senedd constituency/region lookup.
-- Senedd Business (ModernGov web service): election results used to build a directory of elected MSs (constituency and region).
-- Senedd Record of Proceedings (`record.senedd.wales`): plenary transcript and vote exports used for per-member extraction, plus official links for verification.
-- Senedd Business meeting information (`mgwebservice.asmx`): meeting lists and attendee data used for committee meeting attendance items.
-
-The MVP avoids inferring missing activity. If an item is visible in the dashboard, it must come from a linked official source.
-The system does not display fabricated participation data: if an item is visible in the dashboard, it must come from an official source link.
-
-## Data pipeline (plain English)
-
-1. Postcode input -> MapIt returns the Senedd constituency and region for that postcode.
-2. Constituency/region -> Senedd Business election results provide the elected MS(s) for those areas.
-3. Record of Proceedings exports -> the backend indexes recent plenary transcripts and votes, and extracts per-member items.
-4. Senedd Business meeting info -> the backend indexes recent committee meetings and matches attendance where recorded.
-5. The dashboard displays only what is found in indexed official sources, with source links and confidence labels.
-
-## Spoken contributions extraction (implemented)
-
-Senedd Tracker extracts **spoken contributions** (recorded participation) from official Senedd Record of Proceedings exports:
-
-- Source: `record.senedd.wales/XMLExport` (Plenary transcript exports).
-- Backend flow:
-  - Fetch recent Plenary transcript export links
-  - Download the official transcript XML (bilingual where available)
-  - Extract contribution rows including `Member_name_English` and the official `contribution_verbatim`/`contribution_translated` text
-  - Match speaker -> member using conservative name normalisation and a confidence label (`high|medium|low`)
-  - Store extracted snippets in the database (`spoken_contributions`)
-- Output: the member dashboard shows a timeline of real spoken contribution snippets with source links and confidence labels.
-
-### Limitations (made explicit in the UI)
-
-- Coverage is **partial**: only a limited number of recent meetings are indexed in the MVP (plenary + committee).
-- Matching is name-based (not an authoritative cross-ID mapping), so some items may be `medium`/`low` confidence or not attributed at all.
-- The app does **not** auto-translate political text. It only displays the official transcript text provided in the export.
-
-### Why this answers supervisor feedback about sources
-
-This milestone uses a verified **official** source (Senedd Record of Proceedings exports) and keeps uncertainty visible (partial coverage + confidence labels), rather than implying full "attendance" or inventing metrics without a confirmed dataset.
-
-## How this answers supervisor questions
-
-### Welsh language production
-
-- The interface is bilingual-ready from the start (English/Welsh UI labels).
-- Political content is not auto-translated. For plenary contributions, the system uses the official bilingual transcript exports when available.
-- Where Welsh/English official versions exist, the dashboard links to the official source for verification.
-
-### Available data sources (and what they support)
-
-- Postcode -> constituency/region: supported by MapIt.
-- Constituency/region -> MSs: supported by Senedd Business election results.
-- Plenary contributions (incl. headings for questions/motions where explicit): supported by Senedd Record of Proceedings transcript exports.
-- Plenary votes/divisions: supported by Senedd Record of Proceedings vote exports.
-- Committee meeting attendance (where recorded): supported by Senedd Business meeting information (attendees list).
-- Attendance (general/plenary): still **partial** and not treated as definitive attendance across all contexts.
-
-## Live / continuous updates (dev/demo)
-
-The MVP is designed to keep working beyond the dissertation with a simple refresh loop:
-
-- The backend caches upstream downloads in the database (`http_cache`) using `CACHE_TTL_SECONDS`.
-- The refresh endpoint re-indexes recent plenary transcript exports and inserts any **new** contributions:
-  - `POST /api/refresh` with optional JSON body `{ "maxMeetings": 8, "force": false }`
-  - Indexing is idempotent: contributions are stored with a uniqueness constraint and inserted with `INSERT OR IGNORE` (history is preserved; no duplicate rows).
-- The frontend shows a `Last updated` timestamp and includes a `Refresh Data` button (dev/demo only) that calls `POST /api/refresh`.
-
-### Historical preservation (MVP approach)
-
-- Each stored contribution includes its date (`occurred_at`) and meeting reference (`meeting_id`) and is linked to a member (`member_id`).
-- Refreshing does not overwrite or delete old contribution rows, allowing future extensions like new time periods or assemblies without losing earlier data.
-
-## Environment variables
-
-Set these in `.env`:
-
-```
-PORT=5174
-SUPABASE_DB_URL=postgresql://postgres:...@db.your-project.supabase.co:5432/postgres
-TWFY_API_KEY=...
-CACHE_TTL_SECONDS=86400
+### 1. Install Dependencies
+```bash
+npm install
 ```
 
-## Data transparency (dissertation requirement)
+### 2. Configure Environment Variables
+Create a `.env.local` file in the project root:
+```env
+PORT=5000
+TWFY_API_KEY=your_twfy_api_key_here
+NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
+```
 
-This MVP includes a **Data Availability** page that clearly labels what is:
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:5000](http://localhost:5000) in your browser.
 
-- Available (implemented and sourced)
-- Partially available (prototype / limited coverage)
-- Not available / not verified (explicitly not implemented)
+---
 
-Political content is not auto-translated; the UI is bilingual-ready and links to official Welsh/English sources where available.
+## Production Deployment (Vercel)
 
-## Dissertation context (Computational & Data Journalism)
+1. Push code to your GitHub repository.
+2. Import the repository on [vercel.com](https://vercel.com).
+3. Under **Project Settings -> Environment Variables**, configure:
+   - `TWFY_API_KEY`
+   - `NEXT_PUBLIC_CONVEX_URL`
+4. Click **Deploy**.
 
-Senedd Tracker demonstrates:
+---
 
-- **Transparency**: every metric has a clear status and source links
-- **Accessibility**: postcode/constituency search lowers barriers to civic information
-- **Data-driven storytelling**: timelines/cards surface patterns of recorded participation
-- **Civic technology**: a practical tool that can be extended as data sources are verified
+## Academic Context & Attribution
+
+- **Author**: Martins Kolawole Are (Candidate ID: `C25070123`)
+- **Institution**: Cardiff School of Journalism, Media & Culture (JOMEC), Cardiff University
+- **Degree**: MSc in Computational & Data Journalism
+- **Supervisor**: Aidan O'Donnell
+- **Ethics Approval Reference**: `25/26COMPJ-25070123`
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
