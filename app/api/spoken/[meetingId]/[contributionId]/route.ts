@@ -35,8 +35,6 @@ export async function GET(
     if (local) data = [local];
   }
 
-  if (!data.length)
-    return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
   const url = new URL(_req.url);
   const memberIdQuery = url.searchParams.get("memberId");
 

@@ -8,7 +8,16 @@ import { AppLogo } from "@/components/Logo";
 
 function SunIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="4" />
       <line x1="12" y1="2" x2="12" y2="6" />
       <line x1="12" y1="18" x2="12" y2="22" />
@@ -24,7 +33,16 @@ function SunIcon() {
 
 function MoonIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   );
@@ -32,7 +50,16 @@ function MoonIcon() {
 
 function ChevronUpIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="18 15 12 9 6 15" />
     </svg>
   );
@@ -40,12 +67,30 @@ function ChevronUpIcon() {
 
 function BurgerIcon({ open }: { open: boolean }) {
   return open ? (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ) : (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="6" x2="21" y2="6" />
       <line x1="3" y1="18" x2="21" y2="18" />
@@ -83,7 +128,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const menuRef = useRef<HTMLElement>(null);
 
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -105,15 +152,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <AppLogo size={44} />
               <div className="nav__brand-text">
                 <span className="nav__brand-name">{t("app_title")}</span>
-                <span className="nav__brand-sub">{t("app_subtitle_short")}</span>
+                <span className="nav__brand-sub">
+                  {t("app_subtitle_short")}
+                </span>
               </div>
             </Link>
 
             <div className="nav__links">
-              <Link href="/" className={`nav__link${pathname === "/" ? " active" : ""}`}>
+              <Link
+                href="/"
+                className={`nav__link${pathname === "/" ? " active" : ""}`}
+              >
                 {t("nav_home")}
               </Link>
-              <Link href="/data" className={`nav__link${pathname === "/data" ? " active" : ""}`}>
+              <Link
+                href="/data"
+                className={`nav__link${pathname === "/data" ? " active" : ""}`}
+              >
                 {t("nav_data")}
               </Link>
             </div>
@@ -132,7 +187,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 className="theme-btn"
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
-                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={
+                  theme === "dark"
+                    ? "Switch to light mode"
+                    : "Switch to dark mode"
+                }
               >
                 {theme === "dark" ? <SunIcon /> : <MoonIcon />}
               </button>
@@ -149,10 +208,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className={`nav__mobile-menu${menuOpen ? " open" : ""}`}>
-          <Link href="/" className={`nav__mobile-link${pathname === "/" ? " active" : ""}`}>
+          <Link
+            href="/"
+            className={`nav__mobile-link${pathname === "/" ? " active" : ""}`}
+          >
             {t("nav_home")}
           </Link>
-          <Link href="/data" className={`nav__mobile-link${pathname === "/data" ? " active" : ""}`}>
+          <Link
+            href="/data"
+            className={`nav__mobile-link${pathname === "/data" ? " active" : ""}`}
+          >
             {t("nav_data")}
           </Link>
           <div className="nav__mobile-divider" />
@@ -160,7 +225,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <select
               className="nav__lang-select"
               value={lang}
-              onChange={(e) => { setLang(e.target.value === "cy" ? "cy" : "en"); setMenuOpen(false); }}
+              onChange={(e) => {
+                setLang(e.target.value === "cy" ? "cy" : "en");
+                setMenuOpen(false);
+              }}
               aria-label="Language"
             >
               <option value="en">{t("lang_en")}</option>
@@ -168,7 +236,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </select>
             <button
               className="theme-btn"
-              onClick={() => { toggleTheme(); setMenuOpen(false); }}
+              onClick={() => {
+                toggleTheme();
+                setMenuOpen(false);
+              }}
               aria-label="Toggle theme"
             >
               {theme === "dark" ? <SunIcon /> : <MoonIcon />}
@@ -177,16 +248,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <main style={{ flex: 1 }}>
-        {children}
-      </main>
+      <main style={{ flex: 1 }}>{children}</main>
 
       <footer className="footer">
         <div className="container">
           <div className="footer__inner">
             <p className="footer__disclaimer">{t("footer_disclaimer")}</p>
             <div className="footer__links">
-              <Link href="/data" className="footer__link">{t("nav_data")}</Link>
+              <Link href="/data" className="footer__link">
+                {t("nav_data")}
+              </Link>
+              <Link href="/privacy" className="footer__link">
+                {t("nav_privacy")}
+              </Link>
             </div>
           </div>
         </div>

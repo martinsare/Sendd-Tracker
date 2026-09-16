@@ -4,6 +4,7 @@ export const enStrings: Record<string, string> = {
   app_subtitle_short: "Participation dashboard",
   nav_home: "Home",
   nav_data: "Data availability",
+  nav_privacy: "Privacy & Terms",
   hero_eyebrow: "Official plenary record • Member dashboard",
   hero_title_a: "Track your",
   hero_title_b: "Member of the Senedd",
@@ -181,6 +182,7 @@ export type Lang = "en" | "cy";
 export const cyStrings: Partial<Record<string, string>> = {
   nav_home: "Hafan",
   nav_data: "Argaeledd data",
+  nav_privacy: "Preifatrwydd a Thelerau",
   app_subtitle_short: "Dangosfwrdd cyfranogiad",
   hero_eyebrow: "Cofnod swyddogol y cyfarfod llawn • Dangosfwrdd aelod",
   hero_title_a: "Dilynwch eich",
